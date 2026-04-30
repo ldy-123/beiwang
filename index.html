@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f4f5fa">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="备忘录">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css">
+  <title>备忘录</title>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-inner">
+    <h1>备忘录</h1>
+    <button class="icon-btn" id="btnSearch" aria-label="搜索">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btnMenu" aria-label="更多">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/>
+      </svg>
+    </button>
+  </div>
+  <div class="search-bar" id="searchBar">
+    <input type="search" id="searchInput" placeholder="搜索备忘录…" autocomplete="off">
+  </div>
+  <div class="menu-bar" id="menuBar">
+    <button class="menu-action" id="btnExport">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      导出备忘录
+    </button>
+    <div class="menu-divider"></div>
+    <button class="menu-action" id="btnImportTrigger">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      导入备忘录
+    </button>
+  </div>
+</header>
+<input type="file" id="fileImport" accept=".json" style="display:none">
+
+<!-- Tags bar -->
+<div class="tags-bar" id="tagsBar"></div>
+
+<!-- Memo list -->
+<main class="content">
+  <div class="memo-list" id="memoList"></div>
+</main>
+
+<!-- FAB -->
+<button class="fab" id="fab" aria-label="新建备忘">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="12" y1="5" x2="12" y2="19"/>
+    <line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+</button>
+
+<!-- Edit Modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="modalTitle">新建备忘</h2>
+      <button class="icon-btn" id="btnCloseModal" style="color:var(--text-secondary)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div>
+      <div class="field-label">标题</div>
+      <input class="input-title" id="inputTitle" type="text" placeholder="备忘录标题…" maxlength="100">
+    </div>
+
+    <div>
+      <div class="field-label">待办清单</div>
+      <div class="todo-list" id="todoList"></div>
+      <button class="btn-add-todo" id="btnAddTodo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        添加待办
+      </button>
+    </div>
+
+    <div>
+      <div class="field-label">标签</div>
+      <div class="tag-selector" id="tagSelector"></div>
+      <div class="tag-input-row" style="margin-top:10px">
+        <input type="text" id="tagInput" placeholder="新标签名…" maxlength="20">
+        <button id="btnAddTag">添加</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-label">颜色</div>
+      <div class="color-picker" id="colorPicker"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDelete" style="display:none">删除</button>
+      <button class="btn-save" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Custom date-time picker -->
+<div id="customTimePicker" class="dp-wrap" style="display:none"></div>
+<div id="dpBackdrop" style="display:none;position:fixed;inset:0;z-index:499"></div>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-tab="memos">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M9 12h6M9 16h4M5 3h14a2 2 0 012 2v16a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/>
+    </svg>
+    <span>备忘</span>
+  </button>
+  <button class="nav-item" data-tab="archive">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/>
+      <line x1="10" y1="12" x2="14" y2="12"/>
+    </svg>
+    <span>归档</span>
+  </button>
+</nav>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="./app.js"></script>
+</body>
+</html>
