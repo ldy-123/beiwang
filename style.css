@@ -134,6 +134,15 @@ body::before {
   color: var(--amber);
   border-bottom-color: var(--amber);
 }
+.tag-chip.tag-dragging { opacity: .25; pointer-events: none; }
+.tag-chip.tag-drop-here {
+  border-left: 2.5px solid var(--amber);
+  padding-left: 15.5px;
+}
+.tag-chip.tag-drop-after {
+  border-right: 2.5px solid var(--amber);
+  padding-right: 15.5px;
+}
 
 /* ─── Content ─── */
 .content {
@@ -171,7 +180,6 @@ body::before {
 .swipe-item {
   position: relative; border-radius: var(--radius);
   overflow: hidden;
-  margin-bottom: 2px;
   animation: cardIn 0.32s ease both;
 }
 .swipe-item:nth-child(1) { animation-delay:   0ms; }
@@ -217,16 +225,20 @@ body::before {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   margin-bottom: 4px; cursor: pointer;
 }
+.card-desc::after {
+  content: ' ⌄'; color: var(--amber); font-size: 10px; font-weight: 800;
+}
 .card-desc.expanded {
   white-space: normal; overflow: visible; text-overflow: unset;
 }
+.card-desc.expanded::after { content: ' ⌃'; }
 .memo-card-footer {
   display: flex; align-items: center; justify-content: space-between; margin-top: 10px;
 }
 .memo-tags { display: flex; gap: 5px; flex-wrap: wrap; }
 .memo-tag {
   font-size: 11px; padding: 2px 9px; border-radius: 20px;
-  font-weight: 700; border: 1.5px solid currentColor; opacity: .75;
+  font-weight: 700; border: 1.5px solid currentColor;
 }
 .memo-date { font-size: 11px; color: var(--text-3); font-weight: 600; }
 
@@ -250,9 +262,9 @@ body::before {
 .card-todo-item span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-todo-more { font-size: 11px; color: var(--text-3); padding-left: 14px; margin-top: 1px; font-weight: 600; }
 .card-progress {
-  font-size: 11px; font-weight: 800; color: #fff;
-  background: var(--amber); padding: 2px 8px; border-radius: 20px;
-  box-shadow: 0 2px 8px rgba(245,158,11,0.25);
+  font-size: 11px; font-weight: 700; color: var(--amber-d);
+  background: var(--amber-dim); padding: 2px 8px; border-radius: 20px;
+  border: 1px solid rgba(245,158,11,0.22);
 }
 
 /* ─── FAB ─── */
@@ -365,19 +377,34 @@ body::before {
   padding-left: calc(var(--indent, 0) * 22px + 10px);
 }
 .drop-line {
-  height: 2px; border-radius: 2px; background: var(--amber);
-  margin: 1px 0; margin-left: calc(var(--indent, 0) * 22px + 20px);
-  pointer-events: none; opacity: .55;
+  height: 3px; border-radius: 3px; background: var(--amber);
+  margin: 2px 0; margin-left: calc(var(--indent, 0) * 22px + 20px);
+  pointer-events: none; opacity: .8; position: relative;
+}
+.drop-line::before {
+  content: ''; position: absolute; left: -5px; top: 50%;
+  transform: translateY(-50%);
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--amber);
 }
 .todo-check {
-  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid var(--border-hi); background: none; cursor: pointer;
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid var(--border-hi); background: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: all .2s;
 }
-.todo-check svg { width: 13px; height: 13px; }
+.todo-check svg { width: 11px; height: 11px; }
 .todo-check.checked {
-  background: var(--amber); border-color: var(--amber); color: #fff;
-  box-shadow: 0 2px 10px rgba(245,158,11,0.28);
+  background: none; border-color: var(--amber); color: var(--amber);
+}
+.todo-burst {
+  position: fixed; width: 6px; height: 6px; border-radius: 50%;
+  pointer-events: none; z-index: 9999;
+  transform: translate(-50%, -50%);
+  animation: todo-burst .5s ease-out forwards;
+}
+@keyframes todo-burst {
+  0%   { transform: translate(-50%, -50%) translate(0, 0) scale(1.2); opacity: 1; }
+  100% { transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
 }
 .todo-body { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .todo-text {
@@ -519,9 +546,6 @@ body::before {
 .nav-item svg { width: 22px; height: 22px; transition: all .2s; }
 .nav-item.active { color: var(--amber); }
 .nav-item.active svg { stroke: var(--amber); }
-.nav-item.active span {
-  background: var(--amber-dim); border-radius: 10px; padding: 1px 8px;
-}
 
 /* ─── Custom date-time picker ─── */
 .dp-wrap {

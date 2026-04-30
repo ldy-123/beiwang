@@ -18,6 +18,24 @@ function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos));
 }
 
+// ─── Tag order ─────────────────────────────────────────
+const TAG_ORDER_KEY = 'tagOrder_v1';
+let tagOrder = [];
+
+function loadTagOrder() {
+  try { tagOrder = JSON.parse(localStorage.getItem(TAG_ORDER_KEY)) || []; }
+  catch { tagOrder = []; }
+}
+function saveTagOrder() {
+  localStorage.setItem(TAG_ORDER_KEY, JSON.stringify(tagOrder));
+}
+function getOrderedTags() {
+  const all = getAllTags();
+  all.forEach(t => { if (!tagOrder.includes(t)) tagOrder.push(t); });
+  tagOrder = tagOrder.filter(t => all.includes(t));
+  return [...tagOrder];
+}
+
 // ─── Helpers ───────────────────────────────────────────
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
@@ -75,10 +93,10 @@ function filteredMemos() {
 // ─── Render ────────────────────────────────────────────
 function renderTagsBar() {
   const bar = document.getElementById('tagsBar');
-  const allTags = getAllTags();
+  const ordered = getOrderedTags();
   bar.innerHTML = `
     <button class="tag-chip ${state.activeTag === 'all' ? 'active' : ''}" data-tag="all">全部</button>
-    ${allTags.map(t => `
+    ${ordered.map(t => `
       <button class="tag-chip ${state.activeTag === t ? 'active' : ''}" data-tag="${escHtml(t)}">
         ${escHtml(t)}
       </button>
@@ -90,6 +108,7 @@ function renderTagsBar() {
       renderAll();
     });
   });
+  initTagDrag();
 }
 
 function _cardHTML(m) {
@@ -191,6 +210,135 @@ function renderAll() {
   });
   renderTagsBar();
   renderList();
+}
+
+// ─── Tag drag reorder ──────────────────────────────────
+let activeTagDrag = null;
+
+function initTagDrag() {
+  const bar = document.getElementById('tagsBar');
+  bar.querySelectorAll('.tag-chip:not([data-tag="all"])').forEach(chip => {
+    let longPressTimer = null;
+    let tStartX, tStartY;
+
+    // Touch: long-press to drag
+    chip.addEventListener('touchstart', e => {
+      tStartX = e.touches[0].clientX;
+      tStartY = e.touches[0].clientY;
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        if (navigator.vibrate) navigator.vibrate(30);
+        _startTagDrag(tStartX, tStartY, chip);
+      }, 400);
+    }, { passive: true });
+    chip.addEventListener('touchmove', e => {
+      if (!longPressTimer) return;
+      const dx = Math.abs(e.touches[0].clientX - tStartX);
+      const dy = Math.abs(e.touches[0].clientY - tStartY);
+      if (dx > 6 || dy > 6) { clearTimeout(longPressTimer); longPressTimer = null; }
+    }, { passive: true });
+    chip.addEventListener('touchend', () => { clearTimeout(longPressTimer); longPressTimer = null; });
+
+    // Mouse: immediate drag
+    chip.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      _startTagDrag(e.clientX, e.clientY, chip);
+    });
+  });
+}
+
+function _startTagDrag(startX, startY, chip) {
+  const tag = chip.dataset.tag;
+  const rect = chip.getBoundingClientRect();
+  const ghost = chip.cloneNode(true);
+  ghost.removeAttribute('data-tag');
+  ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
+    pointer-events:none;z-index:999;opacity:.9;transform:scale(1.08) translateY(-3px);
+    transition:none;box-shadow:0 4px 16px rgba(245,158,11,0.3);`;
+  document.body.appendChild(ghost);
+  chip.classList.add('tag-dragging');
+  activeTagDrag = { tag, chip, ghost, startX, offsetX: startX - rect.left, dragging: false };
+
+  function onMove(x) {
+    if (!activeTagDrag) return;
+    if (!activeTagDrag.dragging && Math.abs(x - startX) > 4) activeTagDrag.dragging = true;
+    if (!activeTagDrag.dragging) return;
+    ghost.style.left = (x - activeTagDrag.offsetX) + 'px';
+    _updateTagDropIndicator(x);
+  }
+
+  function onEnd(x) {
+    removeListeners();
+    if (!activeTagDrag) return;
+    const { tag, chip, ghost, dragging } = activeTagDrag;
+    ghost.remove();
+    chip.classList.remove('tag-dragging');
+    _clearTagDropIndicator();
+    if (dragging) {
+      const dropIdx = _getTagDropIndex(x, tag);
+      if (dropIdx !== -1) {
+        const from = tagOrder.indexOf(tag);
+        tagOrder.splice(from, 1);
+        tagOrder.splice(dropIdx, 0, tag);
+        saveTagOrder();
+        renderTagsBar();
+      }
+    }
+    activeTagDrag = null;
+  }
+
+  const onTM = e => { e.preventDefault(); onMove(e.touches[0].clientX); };
+  const onTE = e => onEnd(e.changedTouches[0].clientX);
+  const onMM = e => onMove(e.clientX);
+  const onMU = e => onEnd(e.clientX);
+  function removeListeners() {
+    document.removeEventListener('touchmove', onTM);
+    document.removeEventListener('touchend', onTE);
+    document.removeEventListener('mousemove', onMM);
+    document.removeEventListener('mouseup', onMU);
+  }
+  document.addEventListener('touchmove', onTM, { passive: false });
+  document.addEventListener('touchend', onTE, { once: true });
+  document.addEventListener('mousemove', onMM);
+  document.addEventListener('mouseup', onMU, { once: true });
+}
+
+function _updateTagDropIndicator(x) {
+  _clearTagDropIndicator();
+  const bar = document.getElementById('tagsBar');
+  const chips = [...bar.querySelectorAll('.tag-chip:not([data-tag="all"]):not(.tag-dragging)')];
+  if (!chips.length) return;
+  // Past the last chip — right-side indicator on last chip
+  if (x > chips[chips.length - 1].getBoundingClientRect().right) {
+    chips[chips.length - 1].classList.add('tag-drop-after');
+    return;
+  }
+  for (const chip of chips) {
+    const r = chip.getBoundingClientRect();
+    if (x >= r.left && x <= r.right) { chip.classList.add('tag-drop-here'); break; }
+  }
+}
+function _clearTagDropIndicator() {
+  document.querySelectorAll('.tag-drop-here,.tag-drop-after').forEach(el => {
+    el.classList.remove('tag-drop-here', 'tag-drop-after');
+  });
+}
+function _getTagDropIndex(x, dragTag) {
+  const bar = document.getElementById('tagsBar');
+  const chips = [...bar.querySelectorAll('.tag-chip:not([data-tag="all"]):not(.tag-dragging)')];
+  if (!chips.length) return -1;
+  // Past the last chip — append to end
+  if (x > chips[chips.length - 1].getBoundingClientRect().right) return tagOrder.length;
+  for (const chip of chips) {
+    const r = chip.getBoundingClientRect();
+    if (x >= r.left && x <= r.right) {
+      const dropTag = chip.dataset.tag;
+      if (dropTag === dragTag) return -1;
+      return tagOrder.indexOf(dropTag);
+    }
+  }
+  return -1;
 }
 
 // ─── Swipe to reveal ───────────────────────────────────
@@ -394,7 +542,10 @@ function renderTodoList() {
   });
   el.querySelectorAll('.todo-check').forEach(btn => {
     btn.addEventListener('click', () => {
-      editTodos[+btn.dataset.oi].done = !editTodos[+btn.dataset.oi].done;
+      const oi = +btn.dataset.oi;
+      const nowDone = !editTodos[oi].done;
+      editTodos[oi].done = nowDone;
+      if (nowDone) spawnBurst(btn);
       renderTodoList();
     });
   });
@@ -543,15 +694,19 @@ function _initDrag(clientX, clientY, idx) {
   const rect = item.getBoundingClientRect();
   const ghost = item.cloneNode(true);
   ghost.classList.add('todo-drag-ghost');
+  // Reset ghost indent to 0 — we move the whole box instead
+  ghost.style.setProperty('--indent', '0');
   ghost.style.cssText += `width:${rect.width}px;top:${rect.top}px;left:${rect.left}px;`;
   document.body.appendChild(ghost);
   item.classList.add('todo-dragging');
+  const currentIndent = editTodos[idx].indent || 0;
   activeDrag = {
     idx, ghost, item,
     offsetY: clientY - rect.top,
     listLeft: list.getBoundingClientRect().left,
+    ghostBaseLeft: rect.left - currentIndent * 22,
     currentX: clientX, currentY: clientY,
-    dropIdx: idx, dropIndent: editTodos[idx].indent || 0,
+    dropIdx: idx, dropIndent: currentIndent,
   };
 }
 
@@ -564,6 +719,8 @@ function _updateDrag(clientX, clientY) {
   const list = document.getElementById('todoList');
   const listRect = list.getBoundingClientRect();
   const indent = Math.max(0, Math.min(2, Math.floor((clientX - listRect.left - 36) / 28)));
+  activeDrag.ghost.style.left = (activeDrag.ghostBaseLeft + indent * 22) + 'px';
+  activeDrag.ghost.style.setProperty('--indent', indent);
   activeDrag.dropIndent = indent;
 
   const items = [...list.querySelectorAll('.todo-item:not(.todo-dragging)')];
@@ -762,6 +919,23 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2000);
 }
 
+// ─── Todo check burst ──────────────────────────────────
+function spawnBurst(btn) {
+  const r = btn.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  const colors = ['#f59e0b', '#6366f1', '#1DD1A1', '#FF6B6B', '#FF9F43', '#FD79A8'];
+  for (let i = 0; i < 8; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'todo-burst';
+    const angle = (i / 8) * 360 + Math.random() * 20;
+    const dist = 18 + Math.random() * 12;
+    dot.style.cssText = `left:${cx}px;top:${cy}px;background:${colors[i % colors.length]};--dx:${Math.cos(angle * Math.PI / 180) * dist}px;--dy:${Math.sin(angle * Math.PI / 180) * dist}px`;
+    document.body.appendChild(dot);
+    dot.addEventListener('animationend', () => dot.remove());
+  }
+}
+
 // ─── Escape ────────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -770,6 +944,7 @@ function escHtml(s) {
 // ─── Init ──────────────────────────────────────────────
 function init() {
   load();
+  loadTagOrder();
 
   document.getElementById('btnSearch').addEventListener('click', toggleSearch);
   document.getElementById('btnMenu').addEventListener('click', toggleMenu);
