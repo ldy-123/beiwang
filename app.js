@@ -718,29 +718,39 @@ function _updateDrag(clientX, clientY) {
 
   const list = document.getElementById('todoList');
   const listRect = list.getBoundingClientRect();
-  const indent = Math.max(0, Math.min(2, Math.floor((clientX - listRect.left - 36) / 28)));
-  activeDrag.ghost.style.left = (activeDrag.ghostBaseLeft + indent * 22) + 'px';
-  activeDrag.ghost.style.setProperty('--indent', indent);
-  activeDrag.dropIndent = indent;
-
   const items = [...list.querySelectorAll('.todo-item:not(.todo-dragging)')];
   list.querySelectorAll('.drop-line').forEach(el => el.remove());
 
+  // Find drop position and the item just above it
   let dropIdx = editTodos.length;
-  let inserted = false;
+  let aboveIndent = -1; // -1 = no item above → must be top-level
+  let insertTarget = null;
+  let insertPos = 'afterend';
   for (let i = 0; i < items.length; i++) {
     const r = items[i].getBoundingClientRect();
     if (clientY < r.top + r.height / 2) {
       dropIdx = +items[i].dataset.oi;
-      items[i].insertAdjacentHTML('beforebegin', `<div class="drop-line" style="--indent:${indent}"></div>`);
-      inserted = true;
+      insertTarget = items[i];
+      insertPos = 'beforebegin';
       break;
     }
+    aboveIndent = editTodos[+items[i].dataset.oi].indent || 0;
   }
-  if (!inserted && items.length) {
-    items[items.length - 1].insertAdjacentHTML('afterend', `<div class="drop-line" style="--indent:${indent}"></div>`);
-  }
+  if (!insertTarget && items.length) insertTarget = items[items.length - 1];
+
+  // Max indent = above item's indent + 1; 0 if no item above
+  const maxIndent = aboveIndent < 0 ? 0 : Math.min(2, aboveIndent + 1);
+  const rawIndent = Math.max(0, Math.min(2, Math.floor((clientX - listRect.left - 36) / 28)));
+  const indent = Math.min(rawIndent, maxIndent);
+
+  activeDrag.ghost.style.left = (activeDrag.ghostBaseLeft + indent * 22) + 'px';
+  activeDrag.ghost.style.setProperty('--indent', indent);
+  activeDrag.dropIndent = indent;
   activeDrag.dropIdx = dropIdx;
+
+  if (insertTarget) {
+    insertTarget.insertAdjacentHTML(insertPos, `<div class="drop-line" style="--indent:${indent}"></div>`);
+  }
 }
 
 function _commitDrag() {
