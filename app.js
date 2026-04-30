@@ -239,11 +239,22 @@ function initTagDrag() {
     }, { passive: true });
     chip.addEventListener('touchend', () => { clearTimeout(longPressTimer); longPressTimer = null; });
 
-    // Mouse: immediate drag (skip touch-synthesized events)
+    // Mouse: drag only after moving threshold (so plain click still works)
     chip.addEventListener('pointerdown', e => {
       if (e.pointerType !== 'mouse' || e.button !== 0) return;
-      e.preventDefault();
-      _startTagDrag(e.clientX, e.clientY, chip);
+      const sx = e.clientX, sy = e.clientY;
+      function onMM(me) {
+        if (Math.abs(me.clientX - sx) > 6 || Math.abs(me.clientY - sy) > 6) {
+          cleanup(); _startTagDrag(sx, sy, chip);
+        }
+      }
+      function onMU() { cleanup(); }
+      function cleanup() {
+        document.removeEventListener('mousemove', onMM);
+        document.removeEventListener('mouseup', onMU);
+      }
+      document.addEventListener('mousemove', onMM);
+      document.addEventListener('mouseup', onMU, { once: true });
     });
   });
 }
@@ -270,17 +281,15 @@ function _startTagDrag(startX, startY, chip) {
 
   function onEnd(x) {
     removeListeners();
-    if (!activeTagDrag) return;
-    const { tag, chip, ghost, dragging } = activeTagDrag;
     ghost.remove();
     chip.classList.remove('tag-dragging');
     _clearTagDropIndicator();
-    if (dragging) {
-      const dropIdx = _getTagDropIndex(x, tag);
+    if (activeTagDrag && activeTagDrag.dragging) {
+      const dropIdx = _getTagDropIndex(x, activeTagDrag.tag);
       if (dropIdx !== -1) {
-        const from = tagOrder.indexOf(tag);
+        const from = tagOrder.indexOf(activeTagDrag.tag);
         tagOrder.splice(from, 1);
-        tagOrder.splice(dropIdx, 0, tag);
+        tagOrder.splice(dropIdx, 0, activeTagDrag.tag);
         saveTagOrder();
         renderTagsBar();
       }
