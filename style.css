@@ -143,11 +143,6 @@ body::before {
 }
 
 /* ─── Swipe item ─── */
-.swipe-item {
-  position: relative; border-radius: var(--radius);
-  overflow: hidden;
-  margin-bottom: 2px;
-}
 .swipe-actions {
   position: absolute; right: 0; top: 0; bottom: 0; width: 160px;
   display: flex; overflow: hidden; border-radius: 0 var(--radius) var(--radius) 0;
@@ -173,6 +168,21 @@ body::before {
 
 /* ─── Memo card ─── */
 .memo-list { display: flex; flex-direction: column; gap: 10px; }
+.swipe-item {
+  position: relative; border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 2px;
+  animation: cardIn 0.32s ease both;
+}
+.swipe-item:nth-child(1) { animation-delay:   0ms; }
+.swipe-item:nth-child(2) { animation-delay:  45ms; }
+.swipe-item:nth-child(3) { animation-delay:  90ms; }
+.swipe-item:nth-child(4) { animation-delay: 135ms; }
+.swipe-item:nth-child(5) { animation-delay: 180ms; }
+.swipe-item:nth-child(6) { animation-delay: 225ms; }
+.swipe-item:nth-child(7) { animation-delay: 270ms; }
+.swipe-item:nth-child(8) { animation-delay: 315ms; }
+
 .memo-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -182,7 +192,6 @@ body::before {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   will-change: transform;
-  animation: cardIn 0.32s ease both;
   transition: border-color .2s, box-shadow .2s;
   box-shadow: var(--shadow-sm);
 }
@@ -190,14 +199,6 @@ body::before {
   border-color: rgba(245,158,11,0.3);
   box-shadow: 0 1px 4px rgba(30,30,70,0.06), 0 0 0 2px rgba(245,158,11,0.10);
 }
-.swipe-item:nth-child(1)  .memo-card { animation-delay:   0ms; }
-.swipe-item:nth-child(2)  .memo-card { animation-delay:  45ms; }
-.swipe-item:nth-child(3)  .memo-card { animation-delay:  90ms; }
-.swipe-item:nth-child(4)  .memo-card { animation-delay: 135ms; }
-.swipe-item:nth-child(5)  .memo-card { animation-delay: 180ms; }
-.swipe-item:nth-child(6)  .memo-card { animation-delay: 225ms; }
-.swipe-item:nth-child(7)  .memo-card { animation-delay: 270ms; }
-.swipe-item:nth-child(8)  .memo-card { animation-delay: 315ms; }
 
 .memo-card .color-bar {
   position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
@@ -210,6 +211,14 @@ body::before {
 .memo-card p {
   font-size: 13px; color: var(--text-2); line-height: 1.6;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card-desc {
+  font-size: 13px; color: var(--text-2); line-height: 1.6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 4px; cursor: pointer;
+}
+.card-desc.expanded {
+  white-space: normal; overflow: visible; text-overflow: unset;
 }
 .memo-card-footer {
   display: flex; align-items: center; justify-content: space-between; margin-top: 10px;
@@ -304,6 +313,14 @@ body::before {
 }
 .input-title:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(245,158,11,0.10); }
 .input-title::placeholder { color: var(--text-3); }
+.input-desc {
+  width: 100%; border: none; border-bottom: 1.5px solid var(--border);
+  background: none; padding: 4px 2px; font-size: 14px; font-weight: 500;
+  outline: none; font-family: inherit; color: var(--text-2);
+  transition: border-color .2s;
+}
+.input-desc:focus { border-bottom-color: var(--amber); }
+.input-desc::placeholder { color: var(--text-3); }
 .input-content {
   width: 100%; border: 1.5px solid var(--border-hi); border-radius: var(--radius-sm);
   background: var(--surface-2);

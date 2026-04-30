@@ -109,6 +109,7 @@ function _cardHTML(m) {
       <div class="color-bar" style="background:${m.color}"></div>
       <div class="memo-card-content">
         <h3>${escHtml(m.title || '无标题')}</h3>
+        ${m.description ? `<p class="card-desc">${escHtml(m.description)}</p>` : ''}
         ${preview.length ? `
           <div class="card-todos">
             ${preview.map(t => `
@@ -158,6 +159,12 @@ function renderList() {
     card.addEventListener('click', () => {
       if (openSwipeId === card.dataset.id) return;
       openEdit(card.dataset.id);
+    });
+  });
+  list.querySelectorAll('.card-desc').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      el.classList.toggle('expanded');
     });
   });
   list.querySelectorAll('.sa-done').forEach(btn => {
@@ -272,14 +279,16 @@ let editTags = [];
 let editAvailableTags = [];
 let editTodos = [];
 let editColor = COLORS[0];
+let editDesc = '';
 
 function openNew() {
   state.editingId = null;
   editTags = [];
   editAvailableTags = [];
   editTodos = [];
+  editDesc = '';
   editColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-  showModal({ id: null, title: '', todos: [], tags: [], color: editColor });
+  showModal({ id: null, title: '', description: '', todos: [], tags: [], color: editColor });
 }
 
 function openEdit(id) {
@@ -290,6 +299,7 @@ function openEdit(id) {
   editTags = [...m.tags];
   editAvailableTags = [...m.tags];
   editTodos = (m.todos || []).map(t => ({ ...t }));
+  editDesc = m.description || '';
   editColor = m.color;
   showModal(m);
 }
@@ -297,6 +307,7 @@ function openEdit(id) {
 function showModal(m) {
   document.getElementById('modalTitle').textContent = m.id ? '编辑备忘' : '新建备忘';
   document.getElementById('inputTitle').value = m.title;
+  document.getElementById('inputDesc').value = m.description || '';
   document.getElementById('tagInput').value = '';
   document.getElementById('btnDelete').style.display = m.id ? 'block' : 'none';
   renderTodoList();
@@ -504,12 +515,16 @@ function _dpRender() {
     _dpClose(); renderTodoList();
   });
 
-  // Position below anchor
+  // Position: below anchor if room, otherwise above
   const r = anchor.getBoundingClientRect();
   const W = 288;
+  const H = wrap.scrollHeight || 420;
   let left = Math.min(r.left, window.innerWidth - W - 8);
   left = Math.max(8, left);
-  const top = r.bottom + 6;
+  let top = r.bottom + 6;
+  if (top + H > window.innerHeight - 8) {
+    top = Math.max(8, r.top - H - 6);
+  }
   wrap.style.cssText = `display:block;left:${left}px;top:${top}px;`;
 }
 
@@ -653,16 +668,17 @@ function addTag() {
 
 function saveMemo() {
   const title = document.getElementById('inputTitle').value.trim();
+  const description = document.getElementById('inputDesc').value.trim();
   const todos = editTodos.filter(t => t.text.trim());
   if (!title && !todos.length) { showToast('请输入标题或待办事项'); return; }
 
   if (state.editingId) {
     const idx = state.memos.findIndex(m => m.id === state.editingId);
     if (idx !== -1) {
-      state.memos[idx] = { ...state.memos[idx], title, todos, tags: editTags, color: editColor, updatedAt: Date.now() };
+      state.memos[idx] = { ...state.memos[idx], title, description, todos, tags: editTags, color: editColor, updatedAt: Date.now() };
     }
   } else {
-    state.memos.push({ id: uid(), title, todos, tags: editTags, color: editColor, createdAt: Date.now(), updatedAt: Date.now() });
+    state.memos.push({ id: uid(), title, description, todos, tags: editTags, color: editColor, createdAt: Date.now(), updatedAt: Date.now() });
   }
 
   save();
