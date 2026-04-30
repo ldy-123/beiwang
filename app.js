@@ -239,9 +239,9 @@ function initTagDrag() {
     }, { passive: true });
     chip.addEventListener('touchend', () => { clearTimeout(longPressTimer); longPressTimer = null; });
 
-    // Mouse: immediate drag
-    chip.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
+    // Mouse: immediate drag (skip touch-synthesized events)
+    chip.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
       e.preventDefault();
       _startTagDrag(e.clientX, e.clientY, chip);
     });
