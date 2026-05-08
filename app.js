@@ -1,12 +1,21 @@
 const STORAGE_KEY = 'memos_v1';
 const COLORS = ['#FF6B6B', '#FF9F43', '#1DD1A1', '#54A0FF', '#A29BFE', '#FD79A8'];
 
+const PRIORITIES = [
+  { key: 'urgent-important',  label: '重要且紧急',       color: '#ef4444', order: 0 },
+  { key: 'urgent',            label: '不重要但紧急',     color: '#f59e0b', order: 1 },
+  { key: 'important',         label: '重要但不紧急',     color: '#3b82f6', order: 2 },
+  { key: 'none',              label: '不重要且不紧急',   color: '#9ca3af', order: 3 },
+];
+const PRIO_MAP = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
+
 let state = {
   memos: [],
   activeTag: 'all',
   searchQuery: '',
   editingId: null,
   currentTab: 'memos',
+  archiveSubTab: 'memos',
 };
 
 // ─── Storage ───────────────────────────────────────────
@@ -16,6 +25,124 @@ function load() {
 }
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos));
+  scheduleNotifications();
+}
+
+// ─── Notifications ─────────────────────────────────────
+let notifTimers = [];
+
+function clearNotifTimers() {
+  notifTimers.forEach(t => clearTimeout(t));
+  notifTimers = [];
+}
+
+function scheduleNotifications() {
+  clearNotifTimers();
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+  const now = Date.now();
+  const MAX_DELAY = 24 * 60 * 60 * 1000; // cap at 24h for reliability
+
+  state.memos.forEach(m => {
+    if (m.archived) return;
+    (m.todos || []).forEach(todo => {
+      if (!todo.dueTime || todo.done) return;
+      const dueMs = new Date(todo.dueTime).getTime();
+      const delay = dueMs - now;
+      if (delay <= 0 || delay > MAX_DELAY) return;
+
+      const timer = setTimeout(() => {
+        const title = m.title || '备忘录提醒';
+        new Notification(title, {
+          body: todo.text || '有待办事项到期',
+          icon: './icon-192.png',
+          tag: `todo-${todo.id}`,
+          vibrate: [200, 100, 200],
+        });
+      }, delay);
+      notifTimers.push(timer);
+    });
+  });
+}
+
+function requestNotifPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(() => scheduleNotifications());
+  } else if ('Notification' in window && Notification.permission === 'granted') {
+    scheduleNotifications();
+  }
+}
+
+// ─── Notes Storage ──────────────────────────────────────
+const NOTES_KEY = 'notes_v1';
+let noteState = {
+  notes: [],
+  activeTag: 'all',
+  editingId: null,
+};
+
+function loadNotes() {
+  try { noteState.notes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; }
+  catch { noteState.notes = []; }
+}
+function saveNotes() {
+  localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes));
+}
+
+// ─── Habits Storage ─────────────────────────────────────
+const HABITS_KEY = 'habits_v1';
+let habitState = {
+  habits: [],
+  editingId: null,
+};
+
+function loadHabits() {
+  try { habitState.habits = JSON.parse(localStorage.getItem(HABITS_KEY)) || []; }
+  catch { habitState.habits = []; }
+}
+function saveHabits() {
+  localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits));
+}
+
+// Week helpers
+function getWeekDates() {
+  const now = new Date();
+  const day = now.getDay();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+}
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function calcStreak(completedDates) {
+  const set = new Set(completedDates);
+  const today = new Date();
+  let streak = 0;
+  let d = new Date(today);
+  if (!set.has(dateKey(d))) {
+    d.setDate(d.getDate() - 1);
+  }
+  while (set.has(dateKey(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+function filteredHabits() {
+  const q = state.searchQuery.trim().toLowerCase();
+  return habitState.habits
+    .filter(h => !h.archived && (!q || h.title.toLowerCase().includes(q)))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 // ─── Tag order ─────────────────────────────────────────
@@ -87,7 +214,41 @@ function filteredMemos() {
     const todoText = (m.todos || []).map(t => t.text).join(' ').toLowerCase();
     const matchSearch = !q || m.title.toLowerCase().includes(q) || todoText.includes(q);
     return matchTag && matchSearch;
+  }).sort((a, b) => {
+    const pa = (PRIO_MAP[a.priority] || PRIO_MAP['none']).order;
+    const pb = (PRIO_MAP[b.priority] || PRIO_MAP['none']).order;
+    if (pa !== pb) return pa - pb;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+// ─── Notes helpers ─────────────────────────────────────
+function getAllNoteTags() {
+  const set = new Set();
+  noteState.notes.filter(n => !n.archived).forEach(n => n.tags.forEach(t => set.add(t)));
+  return [...set];
+}
+
+function filteredNotes() {
+  return noteState.notes.filter(n => {
+    const matchTag = noteState.activeTag === 'all' || n.tags.includes(noteState.activeTag);
+    const q = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+    const plainText = stripHtml(n.content || '');
+    const matchSearch = !q || n.title.toLowerCase().includes(q) || plainText.toLowerCase().includes(q);
+    return !n.archived && matchTag && matchSearch;
   }).sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function stripHtml(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return d.textContent || d.innerText || '';
+}
+
+function truncateHtml(html, len) {
+  const text = stripHtml(html);
+  if (text.length <= len) return escHtml(text);
+  return escHtml(text.slice(0, len)) + '…';
 }
 
 // ─── Render ────────────────────────────────────────────
@@ -107,6 +268,7 @@ function renderTagsBar() {
       state.activeTag = btn.dataset.tag;
       renderAll();
     });
+    btn.addEventListener('contextmenu', e => e.preventDefault());
   });
   initTagDrag();
 }
@@ -116,6 +278,8 @@ function _cardHTML(m) {
   const done = todos.filter(t => t.done).length;
   const preview = todos.slice(0, 2);
   const inArchive = state.currentTab === 'archive';
+  const prio = PRIO_MAP[m.priority] || PRIO_MAP['none'];
+  const prioBadge = `<span class="prio-badge" style="color:${prio.color};background:${prio.color}11;border-color:${prio.color}44">${prio.label}</span>`;
   return `
   <div class="swipe-item" data-id="${m.id}">
     <div class="swipe-actions">
@@ -127,7 +291,10 @@ function _cardHTML(m) {
     <div class="memo-card" data-id="${m.id}">
       <div class="color-bar" style="background:${m.color}"></div>
       <div class="memo-card-content">
-        <h3>${escHtml(m.title || '无标题')}</h3>
+        <div style="display:flex;align-items:center;gap:8px">
+          <h3 style="flex:1;margin-bottom:0">${escHtml(m.title || '无标题')}</h3>
+          ${prioBadge}
+        </div>
         ${m.description ? `<p class="card-desc">${escHtml(m.description)}</p>` : ''}
         ${preview.length ? `
           <div class="card-todos">
@@ -199,17 +366,180 @@ function renderList() {
 }
 
 function renderAll() {
-  if (state.activeTag !== 'all' && !getAllTags().includes(state.activeTag)) {
+  const isNotes = state.currentTab === 'notes';
+  const isHabits = state.currentTab === 'habits';
+  const inArchive = state.currentTab === 'archive';
+
+  if (!isNotes && !isHabits && state.activeTag !== 'all' && !getAllTags().includes(state.activeTag)) {
     state.activeTag = 'all';
   }
-  const inArchive = state.currentTab === 'archive';
-  document.getElementById('tagsBar').style.display = inArchive ? 'none' : '';
-  document.getElementById('fab').style.display    = inArchive ? 'none' : '';
+  if (isNotes && noteState.activeTag !== 'all' && !getAllNoteTags().includes(noteState.activeTag)) {
+    noteState.activeTag = 'all';
+  }
+
+  document.getElementById('tagsBar').style.display = (inArchive || isHabits) ? 'none' : '';
+  document.getElementById('archiveSubtabs').style.display = inArchive ? 'flex' : 'none';
+  document.getElementById('fab').style.display = inArchive ? 'none' : '';
+
+  document.querySelectorAll('.archive-subtab').forEach(el => {
+    el.classList.toggle('active', el.dataset.archive === state.archiveSubTab);
+  });
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.tab === state.currentTab);
   });
-  renderTagsBar();
-  renderList();
+
+  if (isHabits) {
+    renderHabitAll();
+  } else if (isNotes) {
+    renderNoteTagsBar();
+    renderNoteList();
+  } else if (inArchive) {
+    renderArchiveAll();
+  } else {
+    renderTagsBar();
+    renderList();
+  }
+}
+
+function renderArchiveAll() {
+  const list = document.getElementById('memoList');
+  const sub = state.archiveSubTab;
+
+  let items = [];
+  if (sub === 'memos') {
+    items = state.memos.filter(m => m.archived).map(m => ({ ...m, _type: 'memo' }));
+  } else if (sub === 'notes') {
+    items = noteState.notes.filter(n => n.archived).map(n => ({ ...n, _type: 'note' }));
+  } else {
+    items = habitState.habits.filter(h => h.archived).map(h => ({ ...h, _type: 'habit', completedDates: h.completedDates, emoji: h.emoji }));
+  }
+  items.sort((a, b) => (b.archivedAt || b.updatedAt) - (a.archivedAt || a.updatedAt));
+
+  const labelMap = { memos: '备忘', notes: '小记', habits: '习惯' };
+  if (!items.length) {
+    list.innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/>
+          <line x1="10" y1="12" x2="14" y2="12"/>
+        </svg>
+        <p>已归档的${labelMap[sub]}为空</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(item => {
+    if (item._type === 'memo') {
+      return _cardHTML(item);
+    } else if (item._type === 'habit') {
+      const weekDates = getWeekDates();
+      const todayKey = dateKey(new Date());
+      const completedSet = new Set(item.completedDates || []);
+      const weekLabels = ['一','二','三','四','五','六','日'];
+      const streak = calcStreak(item.completedDates || []);
+      const dots = weekDates.map((d, i) => {
+        const key = dateKey(d);
+        const done = completedSet.has(key);
+        return `<span class="habit-dot${done ? ' done' : ''}${key === todayKey ? ' today' : ''}" style="pointer-events:none">
+          <span class="wd">${weekLabels[i]}</span>
+        </span>`;
+      }).join('');
+      return `
+      <div class="habit-swipe-item" data-id="${item.id}">
+        <div class="swipe-actions">
+          <button class="habit-sa-restore" data-id="${item.id}">恢复</button>
+          <button class="habit-sa-del" data-id="${item.id}">删除</button>
+        </div>
+        <div class="habit-card" data-id="${item.id}">
+          <div class="habit-main">
+            <span class="habit-emoji">${item.emoji || '⭐'}</span>
+            <div class="habit-info">
+              <h3>${escHtml(item.title)}</h3>
+              ${streak >= 2 ? `<span class="habit-streak">🔥 ${streak} 天</span>` : ''}
+            </div>
+          </div>
+          <div class="habit-week">${dots}</div>
+        </div>
+      </div>`;
+    } else {
+      const plain = stripHtml(item.content || '');
+      const trimmed = plain.length > 100 ? plain.slice(0, 100) + '…' : plain;
+      const hasMore = plain.length > 100;
+      const escapedPreview = escHtml(trimmed);
+      return `
+      <div class="note-swipe-item" data-id="${item.id}">
+        <div class="swipe-actions">
+          <button class="note-sa-restore" data-id="${item.id}">恢复</button>
+          <button class="note-sa-del" data-id="${item.id}">删除</button>
+        </div>
+        <div class="note-card" data-id="${item.id}">
+          <h3>${escHtml(item.title || '无标题')}</h3>
+          ${escapedPreview ? `
+            <div class="note-card-preview${hasMore ? ' note-card-has-more' : ''}" data-full="${escHtml(plain)}" data-collapsed="${escapedPreview}">
+              ${escapedPreview}
+            </div>` : ''}
+          <div class="note-card-footer">
+            <div class="note-card-tags">
+              ${(item.tags || []).map(t => `<span class="note-card-tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">${escHtml(t)}</span>`).join('')}
+            </div>
+            <span class="note-card-date">${fmtDate(item.updatedAt)}</span>
+          </div>
+        </div>
+      </div>`;
+    }
+  }).join('');
+
+  list.querySelectorAll('.memo-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (openSwipeId === card.dataset.id) return;
+      openEdit(card.dataset.id);
+    });
+  });
+  list.querySelectorAll('.note-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (noteSwipeOpenId === card.dataset.id) return;
+      openEditNote(card.dataset.id);
+    });
+  });
+  list.querySelectorAll('.note-card-preview').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      if (el.classList.contains('expanded')) {
+        el.classList.remove('expanded');
+        el.textContent = el.dataset.collapsed;
+      } else {
+        el.classList.add('expanded');
+        el.textContent = el.dataset.full;
+      }
+    });
+  });
+  list.querySelectorAll('.sa-restore').forEach(btn => {
+    btn.addEventListener('click', () => restoreMemo(btn.dataset.id));
+  });
+  list.querySelectorAll('.note-sa-restore').forEach(btn => {
+    btn.addEventListener('click', () => restoreNote(btn.dataset.id));
+  });
+  list.querySelectorAll('.sa-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteMemoById(btn.dataset.id));
+  });
+  list.querySelectorAll('.note-sa-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteNoteById(btn.dataset.id));
+  });
+  list.querySelectorAll('.habit-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (habitSwipeOpenId === card.dataset.id) return;
+      openEditHabit(card.dataset.id);
+    });
+  });
+  list.querySelectorAll('.habit-sa-restore').forEach(btn => {
+    btn.addEventListener('click', () => restoreHabit(btn.dataset.id));
+  });
+  list.querySelectorAll('.habit-sa-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteHabitById(btn.dataset.id));
+  });
+  initSwipes();
+  initNoteSwipes();
+  initHabitSwipes();
 }
 
 // ─── Tag drag reorder ──────────────────────────────────
@@ -229,7 +559,7 @@ function initTagDrag() {
         longPressTimer = null;
         if (navigator.vibrate) navigator.vibrate(30);
         _startTagDrag(tStartX, tStartY, chip);
-      }, 400);
+      }, 300);
     }, { passive: true });
     chip.addEventListener('touchmove', e => {
       if (!longPressTimer) return;
@@ -437,15 +767,18 @@ let editAvailableTags = [];
 let editTodos = [];
 let editColor = COLORS[0];
 let editDesc = '';
+let editPriority = 'none';
 
 function openNew() {
   state.editingId = null;
-  editTags = [];
-  editAvailableTags = [];
+  const presetTag = state.activeTag !== 'all' ? [state.activeTag] : [];
+  editTags = [...presetTag];
+  editAvailableTags = [...presetTag];
   editTodos = [];
   editDesc = '';
+  editPriority = 'none';
   editColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-  showModal({ id: null, title: '', description: '', todos: [], tags: [], color: editColor });
+  showModal({ id: null, title: '', description: '', todos: [], tags: [], color: editColor, priority: 'none' });
 }
 
 function openEdit(id) {
@@ -458,6 +791,7 @@ function openEdit(id) {
   editTodos = (m.todos || []).map(t => ({ ...t }));
   editDesc = m.description || '';
   editColor = m.color;
+  editPriority = m.priority || 'none';
   showModal(m);
 }
 
@@ -470,6 +804,7 @@ function showModal(m) {
   renderTodoList();
   renderTagSelector();
   renderColorPicker();
+  renderPrioritySelector();
   document.getElementById('overlay').classList.add('open');
   setTimeout(() => document.getElementById('inputTitle').focus(), 350);
 }
@@ -830,6 +1165,24 @@ function renderColorPicker() {
   });
 }
 
+function renderPrioritySelector() {
+  const el = document.getElementById('prioritySelector');
+  el.innerHTML = PRIORITIES.map(p => `
+    <button class="priority-opt${editPriority === p.key ? ' prio-sel' : ''}"
+      data-key="${p.key}" type="button"
+      style="${editPriority === p.key ? `color:${p.color};border-color:${p.color};background:${p.color}11` : ''}">
+      <span class="priority-dot" style="background:${p.color}"></span>
+      ${p.label}
+    </button>
+  `).join('');
+  el.querySelectorAll('.priority-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      editPriority = btn.dataset.key;
+      renderPrioritySelector();
+    });
+  });
+}
+
 function addTag() {
   const input = document.getElementById('tagInput');
   const val = input.value.trim();
@@ -851,10 +1204,10 @@ function saveMemo() {
   if (state.editingId) {
     const idx = state.memos.findIndex(m => m.id === state.editingId);
     if (idx !== -1) {
-      state.memos[idx] = { ...state.memos[idx], title, description, todos, tags: editTags, color: editColor, updatedAt: Date.now() };
+      state.memos[idx] = { ...state.memos[idx], title, description, todos, tags: editTags, color: editColor, priority: editPriority, updatedAt: Date.now() };
     }
   } else {
-    state.memos.push({ id: uid(), title, description, todos, tags: editTags, color: editColor, createdAt: Date.now(), updatedAt: Date.now() });
+    state.memos.push({ id: uid(), title, description, todos, tags: editTags, color: editColor, priority: editPriority, createdAt: Date.now(), updatedAt: Date.now() });
   }
 
   save();
@@ -883,18 +1236,43 @@ function toggleMenu() {
 }
 
 function exportData() {
-  const json = JSON.stringify(state.memos, null, 2);
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    memos: state.memos,
+    notes: noteState.notes,
+    habits: habitState.habits,
+  };
+  const json = JSON.stringify(data, null, 2);
+  const fileName = `beiwang_${new Date().toISOString().slice(0, 10)}.json`;
+  const total = state.memos.length + noteState.notes.length + habitState.habits.length;
+  document.getElementById('menuBar').classList.remove('open');
+
+  if (navigator.share && navigator.canShare) {
+    const file = new File([json], fileName, { type: 'application/json' });
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: '备忘录全量备份' }).then(() => {
+        showToast(`已分享 ${total} 条数据`);
+      }).catch(err => {
+        if (err.name !== 'AbortError') downloadFallback(json, fileName, total);
+      });
+      return;
+    }
+  }
+  downloadFallback(json, fileName, total);
+}
+
+function downloadFallback(json, fileName, total) {
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `memos_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  document.getElementById('menuBar').classList.remove('open');
-  showToast(`已导出 ${state.memos.length} 条备忘录`);
+  showToast(`已导出 ${total} 条数据`);
 }
 
 function importData(file) {
@@ -902,19 +1280,60 @@ function importData(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const memos = JSON.parse(e.target.result);
-      if (!Array.isArray(memos)) throw new Error();
-      if (!confirm(`将导入 ${memos.length} 条备忘录并替换当前数据，确定吗？`)) return;
-      state.memos = memos;
-      save();
+      const data = JSON.parse(e.target.result);
+      // Support both old format (array of memos) and new format (full backup)
+      let memos, notes, habits;
+      if (Array.isArray(data)) {
+        memos = data; notes = []; habits = [];
+      } else {
+        memos = data.memos || [];
+        notes = data.notes || [];
+        habits = data.habits || [];
+      }
+      const total = memos.length + notes.length + habits.length;
+      if (!confirm(`将导入 ${total} 条数据并替换当前数据（备忘 ${memos.length}、小记 ${notes.length}、打卡 ${habits.length}），确定吗？`)) return;
+      state.memos = memos; save();
+      noteState.notes = notes; saveNotes();
+      habitState.habits = habits; saveHabits();
       renderAll();
-      showToast(`已导入 ${memos.length} 条备忘录`);
+      showToast(`已导入 ${total} 条数据`);
     } catch {
       showToast('文件格式有误，无法导入');
     }
   };
   reader.readAsText(file);
   document.getElementById('menuBar').classList.remove('open');
+}
+
+async function importFromClipboard() {
+  document.getElementById('menuBar').classList.remove('open');
+  if (!navigator.clipboard || !navigator.clipboard.readText) {
+    showToast('当前浏览器不支持从剪贴板读取');
+    return;
+  }
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) { showToast('剪贴板为空'); return; }
+    const data = JSON.parse(text);
+    let memos, notes, habits;
+    if (Array.isArray(data)) {
+      memos = data; notes = []; habits = [];
+    } else {
+      memos = data.memos || [];
+      notes = data.notes || [];
+      habits = data.habits || [];
+    }
+    const total = memos.length + notes.length + habits.length;
+    if (!confirm(`将导入 ${total} 条数据并替换当前数据（备忘 ${memos.length}、小记 ${notes.length}、打卡 ${habits.length}），确定吗？`)) return;
+    state.memos = memos; save();
+    noteState.notes = notes; saveNotes();
+    habitState.habits = habits; saveHabits();
+    renderAll();
+    showToast(`已导入 ${total} 条数据`);
+  } catch (e) {
+    if (e instanceof SyntaxError) showToast('剪贴板内容不是有效的 JSON，无法导入');
+    else showToast('剪贴板内容格式有误，无法导入');
+  }
 }
 
 // ─── Search ────────────────────────────────────────────
@@ -926,7 +1345,9 @@ function toggleSearch() {
     bar.querySelector('input').focus();
   } else {
     state.searchQuery = '';
-    renderList();
+    if (state.currentTab === 'notes') renderNoteList();
+    else if (state.currentTab === 'habits') renderHabitList();
+    else renderList();
   }
 }
 
@@ -960,6 +1381,688 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ═══════════════════════════════════════════════════════
+// ─── Notes: rendering ──────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+function renderNoteTagsBar() {
+  const bar = document.getElementById('tagsBar');
+  const tags = getAllNoteTags();
+  if (!tags.length) {
+    bar.innerHTML = '';
+    return;
+  }
+  bar.innerHTML = `
+    <button class="tag-chip ${noteState.activeTag === 'all' ? 'active' : ''}" data-note-tag="all">全部</button>
+    ${tags.map(t => `
+      <button class="tag-chip ${noteState.activeTag === t ? 'active' : ''}" data-note-tag="${escHtml(t)}">
+        ${escHtml(t)}
+      </button>
+    `).join('')}
+  `;
+  bar.querySelectorAll('.tag-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      noteState.activeTag = btn.dataset.noteTag;
+      renderNoteAll();
+    });
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  });
+}
+
+function _noteCardHTML(n) {
+  const plain = stripHtml(n.content || '');
+  const trimmed = plain.length > 100 ? plain.slice(0, 100) + '…' : plain;
+  const hasMore = plain.length > 100;
+  const escapedPreview = escHtml(trimmed);
+  return `
+  <div class="note-swipe-item" data-id="${n.id}">
+    <div class="swipe-actions">
+      <button class="note-sa-archive" data-id="${n.id}">完成</button>
+      <button class="note-sa-del" data-id="${n.id}">删除</button>
+    </div>
+    <div class="note-card" data-id="${n.id}">
+      <h3>${escHtml(n.title || '无标题')}</h3>
+      ${escapedPreview ? `
+        <div class="note-card-preview${hasMore ? ' note-card-has-more' : ''}" data-full="${escHtml(plain)}" data-collapsed="${escapedPreview}">
+          ${escapedPreview}
+        </div>` : ''}
+      <div class="note-card-footer">
+        <div class="note-card-tags">
+          ${n.tags.map(t => `
+            <span class="note-card-tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">
+              ${escHtml(t)}
+            </span>
+          `).join('')}
+        </div>
+        <span class="note-card-date">${fmtDate(n.updatedAt)}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderNoteList() {
+  const list = document.getElementById('memoList');
+  const notes = filteredNotes();
+  if (!notes.length) {
+    list.innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <p>还没有小记，点击 + 新建</p>
+      </div>`;
+    return;
+  }
+  list.innerHTML = notes.map(_noteCardHTML).join('');
+
+  list.querySelectorAll('.note-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (noteSwipeOpenId === card.dataset.id) return;
+      openEditNote(card.dataset.id);
+    });
+  });
+  list.querySelectorAll('.note-card-preview').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      if (el.classList.contains('expanded')) {
+        el.classList.remove('expanded');
+        el.textContent = el.dataset.collapsed;
+      } else {
+        el.classList.add('expanded');
+        el.textContent = el.dataset.full;
+      }
+    });
+  });
+  list.querySelectorAll('.note-sa-archive').forEach(btn => {
+    btn.addEventListener('click', () => archiveNote(btn.dataset.id));
+  });
+  list.querySelectorAll('.note-sa-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteNoteById(btn.dataset.id));
+  });
+  initNoteSwipes();
+}
+
+function renderNoteAll() {
+  const inArchive = state.currentTab === 'archive';
+  document.getElementById('tagsBar').style.display = inArchive ? 'none' : '';
+  document.getElementById('fab').style.display    = inArchive ? 'none' : '';
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === state.currentTab);
+  });
+  if (state.currentTab === 'notes') {
+    renderNoteTagsBar();
+    renderNoteList();
+  } else {
+    renderTagsBar();
+    renderList();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Notes: archive / delete ──────────────────────────
+// ═══════════════════════════════════════════════════════
+
+function archiveNote(id) {
+  const n = noteState.notes.find(x => x.id === id);
+  if (n) { n.archived = true; n.archivedAt = Date.now(); saveNotes(); renderAll(); showToast('已完成'); }
+}
+function restoreNote(id) {
+  const n = noteState.notes.find(x => x.id === id);
+  if (n) { n.archived = false; n.archivedAt = null; saveNotes(); renderAll(); showToast('已恢复'); }
+}
+function deleteNoteById(id) {
+  noteState.notes = noteState.notes.filter(n => n.id !== id);
+  saveNotes(); renderAll(); showToast('已删除');
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Notes: swipe ─────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+let noteSwipeOpenId = null;
+
+function closeAllNoteSwipes() {
+  if (!noteSwipeOpenId) return;
+  const card = document.querySelector(`.note-swipe-item[data-id="${noteSwipeOpenId}"] .note-card`);
+  if (card) { card.style.transition = 'transform .25s ease'; card.style.transform = ''; }
+  noteSwipeOpenId = null;
+}
+
+function initNoteSwipes() {
+  document.querySelectorAll('.note-swipe-item').forEach(item => {
+    const id = item.dataset.id;
+    const card = item.querySelector('.note-card');
+    let sx, sy, cx = 0, active = false, moved = false;
+
+    function onStart(clientX, clientY) {
+      sx = clientX; sy = clientY;
+      cx = 0; active = true; moved = false;
+      card.style.transition = 'none';
+    }
+    function onMove(clientX, clientY) {
+      if (!active) return false;
+      const dx = clientX - sx, dy = clientY - sy;
+      if (!moved) {
+        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return false;
+        if (Math.abs(dy) > Math.abs(dx)) { active = false; return false; }
+        moved = true;
+        if (noteSwipeOpenId && noteSwipeOpenId !== id) closeAllNoteSwipes();
+      }
+      cx = Math.max(0, Math.min(ACTION_W, -dx));
+      card.style.transform = `translateX(-${cx}px)`;
+      return true;
+    }
+    function onEnd() {
+      if (!active || !moved) { active = false; return; }
+      active = false;
+      card.style.transition = 'transform .25s cubic-bezier(.32,0,.15,1)';
+      if (cx > ACTION_W / 2) { card.style.transform = `translateX(-${ACTION_W}px)`; noteSwipeOpenId = id; }
+      else { card.style.transform = ''; noteSwipeOpenId = null; }
+      cx = 0;
+    }
+
+    item.addEventListener('touchstart', e => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    item.addEventListener('touchmove', e => { if (onMove(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); }, { passive: false });
+    item.addEventListener('touchend', onEnd);
+
+    item.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      onStart(e.clientX, e.clientY);
+      const onMM = e => onMove(e.clientX, e.clientY);
+      const onMU = () => {
+        document.removeEventListener('mousemove', onMM);
+        document.removeEventListener('mouseup', onMU);
+        if (moved) document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+        onEnd();
+      };
+      document.addEventListener('mousemove', onMM);
+      document.addEventListener('mouseup', onMU);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Notes: modal ─────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+let noteEditTags = [];
+let noteEditAvailableTags = [];
+
+function openNewNote() {
+  noteState.editingId = null;
+  const presetTag = noteState.activeTag !== 'all' ? [noteState.activeTag] : [];
+  noteEditTags = [...presetTag];
+  noteEditAvailableTags = [...presetTag];
+  showNoteModal({ id: null, title: '', content: '', tags: [] });
+}
+
+function openEditNote(id) {
+  closeAllNoteSwipes();
+  const n = noteState.notes.find(x => x.id === id);
+  if (!n) return;
+  noteState.editingId = id;
+  noteEditTags = [...n.tags];
+  noteEditAvailableTags = [...n.tags];
+  showNoteModal(n);
+}
+
+function showNoteModal(n) {
+  document.getElementById('noteModalTitle').textContent = n.id ? '编辑小记' : '新建小记';
+  document.getElementById('noteInputTitle').value = n.title || '';
+  document.getElementById('richtextEditor').innerHTML = n.content || '';
+  document.getElementById('noteTagInput').value = '';
+  document.getElementById('btnDeleteNote').style.display = n.id ? 'block' : 'none';
+  renderNoteTagSelector();
+  document.getElementById('noteOverlay').classList.add('open');
+  setTimeout(() => {
+    document.getElementById('noteInputTitle').focus();
+  }, 350);
+}
+
+function closeNoteModal() {
+  document.getElementById('noteOverlay').classList.remove('open');
+  noteState.editingId = null;
+}
+
+function saveNote() {
+  const title = document.getElementById('noteInputTitle').value.trim();
+  const content = document.getElementById('richtextEditor').innerHTML;
+  const tags = noteEditTags;
+  if (!title && !stripHtml(content).trim()) { showToast('请输入标题或内容'); return; }
+
+  if (noteState.editingId) {
+    const idx = noteState.notes.findIndex(n => n.id === noteState.editingId);
+    if (idx !== -1) {
+      noteState.notes[idx] = { ...noteState.notes[idx], title, content, tags, updatedAt: Date.now() };
+    }
+  } else {
+    noteState.notes.push({ id: uid(), title, content, tags, createdAt: Date.now(), updatedAt: Date.now() });
+  }
+
+  saveNotes();
+  closeNoteModal();
+  renderAll();
+  showToast(noteState.editingId ? '已保存' : '小记已创建');
+}
+
+function deleteNote() {
+  if (!noteState.editingId) return;
+  if (!confirm('确定删除这条小记吗？')) return;
+  noteState.notes = noteState.notes.filter(n => n.id !== noteState.editingId);
+  saveNotes();
+  closeNoteModal();
+  renderAll();
+  showToast('已删除');
+}
+
+function renderNoteTagSelector() {
+  const el = document.getElementById('noteTagSelector');
+  const all = [...new Set([...getAllNoteTags(), ...noteEditAvailableTags])];
+  if (!all.length) {
+    el.innerHTML = '<span style="font-size:13px;color:var(--text-secondary)">还没有标签，在下方输入新标签</span>';
+    return;
+  }
+  el.innerHTML = all.map(t => {
+    const selected = noteEditTags.includes(t);
+    return `<button class="sel-tag ${selected ? 'sel-tag--on' : ''}"
+      style="${selected ? `background:${tagColor(t)};color:#fff;` : `background:${tagColor(t)}22;color:${tagColor(t)};`}"
+      data-tag="${escHtml(t)}">${escHtml(t)}</button>`;
+  }).join('');
+  el.querySelectorAll('.sel-tag').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const t = btn.dataset.tag;
+      noteEditTags = noteEditTags.includes(t) ? noteEditTags.filter(x => x !== t) : [...noteEditTags, t];
+      renderNoteTagSelector();
+    });
+  });
+}
+
+function addNoteTag() {
+  const input = document.getElementById('noteTagInput');
+  const val = input.value.trim();
+  if (val && !noteEditTags.includes(val)) {
+    noteEditTags.push(val);
+    if (!noteEditAvailableTags.includes(val)) noteEditAvailableTags.push(val);
+    renderNoteTagSelector();
+  }
+  input.value = '';
+  input.focus();
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Habits: rendering ────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+const HABIT_EMOJIS = ['💪','🏃','🧘','🏋️','🚴','🏊','📚','✍️','💻','🎯','🎨','🎵','🧹','💤','🍎','💧','🧠','🌱','⭐','🔥','📝','💡','🌟','❤️','🎉','🐕','☀️','🌈','🍳','⏰','📱','💵'];
+
+function _habitCardHTML(h) {
+  const weekDates = getWeekDates();
+  const today = new Date();
+  const todayKey = dateKey(today);
+  const completedSet = new Set(h.completedDates || []);
+  const weekLabels = ['一','二','三','四','五','六','日'];
+  const streak = calcStreak(h.completedDates || []);
+
+  const dots = weekDates.map((d, i) => {
+    const key = dateKey(d);
+    const done = completedSet.has(key);
+    const isToday = key === todayKey;
+    return `<button class="habit-dot${done ? ' done' : ''}${isToday ? ' today' : ''}"
+      data-date="${key}" data-id="${h.id}" type="button"
+      aria-label="${weekLabels[i]} ${done ? '已打卡' : '未打卡'}">
+      <span class="wd">${weekLabels[i]}</span>
+    </button>`;
+  }).join('');
+
+  return `
+  <div class="habit-swipe-item" data-id="${h.id}">
+    <div class="swipe-actions">
+      <button class="habit-sa-archive" data-id="${h.id}">完成</button>
+      <button class="habit-sa-del" data-id="${h.id}">删除</button>
+    </div>
+    <div class="habit-card" data-id="${h.id}">
+      <div class="habit-main">
+        <span class="habit-emoji">${h.emoji}</span>
+        <div class="habit-info">
+          <h3>${escHtml(h.title)}</h3>
+          ${streak >= 2 ? `<span class="habit-streak">🔥 ${streak} 天</span>` : ''}
+        </div>
+      </div>
+      <div class="habit-week">${dots}</div>
+    </div>
+  </div>`;
+}
+
+function renderHabitList() {
+  const list = document.getElementById('memoList');
+  const habits = filteredHabits();
+  if (!habits.length) {
+    list.innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M9 11l3 3L22 4"/>
+          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+        </svg>
+        <p>还没有习惯，点击 + 新建</p>
+      </div>`;
+    return;
+  }
+  list.innerHTML = habits.map(_habitCardHTML).join('');
+
+  // Dot click: toggle check
+  list.querySelectorAll('.habit-dot').forEach(dot => {
+    dot.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = dot.dataset.id;
+      const date = dot.dataset.date;
+      const habit = habitState.habits.find(h => h.id === id);
+      if (!habit) return;
+      const set = new Set(habit.completedDates || []);
+      if (set.has(date)) set.delete(date);
+      else set.add(date);
+      habit.completedDates = [...set];
+      habit.updatedAt = Date.now();
+      saveHabits();
+      renderHabitList();
+      if (set.has(date)) showToast('已打卡 ✓');
+    });
+  });
+
+  // Card click: edit
+  list.querySelectorAll('.habit-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (habitSwipeOpenId === card.dataset.id) return;
+      openEditHabit(card.dataset.id);
+    });
+  });
+
+  list.querySelectorAll('.habit-sa-archive').forEach(btn => {
+    btn.addEventListener('click', () => archiveHabit(btn.dataset.id));
+  });
+  list.querySelectorAll('.habit-sa-del').forEach(btn => {
+    btn.addEventListener('click', () => deleteHabitById(btn.dataset.id));
+  });
+  initHabitSwipes();
+}
+
+function renderHabitAll() {
+  document.getElementById('tagsBar').style.display = 'none';
+  document.getElementById('archiveSubtabs').style.display = 'none';
+  document.getElementById('fab').style.display = '';
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.tab === state.currentTab);
+  });
+  renderHabitList();
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Habits: archive / swipe ──────────────────────────
+// ═══════════════════════════════════════════════════════
+
+function archiveHabit(id) {
+  const h = habitState.habits.find(x => x.id === id);
+  if (h) { h.archived = true; h.archivedAt = Date.now(); saveHabits(); renderAll(); showToast('已完成'); }
+}
+function restoreHabit(id) {
+  const h = habitState.habits.find(x => x.id === id);
+  if (h) { h.archived = false; h.archivedAt = null; saveHabits(); renderAll(); showToast('已恢复'); }
+}
+function deleteHabitById(id) {
+  habitState.habits = habitState.habits.filter(h => h.id !== id);
+  saveHabits(); renderAll(); showToast('已删除');
+}
+
+let habitSwipeOpenId = null;
+
+function closeAllHabitSwipes() {
+  if (!habitSwipeOpenId) return;
+  const card = document.querySelector(`.habit-swipe-item[data-id="${habitSwipeOpenId}"] .habit-card`);
+  if (card) { card.style.transition = 'transform .25s ease'; card.style.transform = ''; }
+  habitSwipeOpenId = null;
+}
+
+function initHabitSwipes() {
+  document.querySelectorAll('.habit-swipe-item').forEach(item => {
+    const id = item.dataset.id;
+    const card = item.querySelector('.habit-card');
+    let sx, sy, cx = 0, active = false, moved = false;
+
+    function onStart(clientX, clientY) {
+      sx = clientX; sy = clientY;
+      cx = 0; active = true; moved = false;
+      card.style.transition = 'none';
+    }
+    function onMove(clientX, clientY) {
+      if (!active) return false;
+      const dx = clientX - sx, dy = clientY - sy;
+      if (!moved) {
+        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) return false;
+        if (Math.abs(dy) > Math.abs(dx)) { active = false; return false; }
+        moved = true;
+        if (habitSwipeOpenId && habitSwipeOpenId !== id) closeAllHabitSwipes();
+      }
+      cx = Math.max(0, Math.min(ACTION_W, -dx));
+      card.style.transform = `translateX(-${cx}px)`;
+      return true;
+    }
+    function onEnd() {
+      if (!active || !moved) { active = false; return; }
+      active = false;
+      card.style.transition = 'transform .25s cubic-bezier(.32,0,.15,1)';
+      if (cx > ACTION_W / 2) { card.style.transform = `translateX(-${ACTION_W}px)`; habitSwipeOpenId = id; }
+      else { card.style.transform = ''; habitSwipeOpenId = null; }
+    }
+
+    item.addEventListener('touchstart', e => onStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    item.addEventListener('touchmove', e => { if (onMove(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault(); }, { passive: false });
+    item.addEventListener('touchend', onEnd);
+
+    item.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      onStart(e.clientX, e.clientY);
+      const onMM = e => onMove(e.clientX, e.clientY);
+      const onMU = () => {
+        document.removeEventListener('mousemove', onMM);
+        document.removeEventListener('mouseup', onMU);
+        if (moved) document.addEventListener('click', e => e.stopPropagation(), { capture: true, once: true });
+        onEnd();
+      };
+      document.addEventListener('mousemove', onMM);
+      document.addEventListener('mouseup', onMU);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Habits: modal ────────────────────────────────────
+// ═══════════════════════════════════════════════════════
+
+let habitEditEmoji = '💪';
+let habitEditColor = COLORS[0];
+
+function openNewHabit() {
+  habitState.editingId = null;
+  habitEditEmoji = HABIT_EMOJIS[Math.floor(Math.random() * HABIT_EMOJIS.length)];
+  habitEditColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+  showHabitModal({ id: null, title: '', emoji: habitEditEmoji, color: habitEditColor, completedDates: [] });
+}
+
+function openEditHabit(id) {
+  closeAllHabitSwipes();
+  const h = habitState.habits.find(x => x.id === id);
+  if (!h) return;
+  habitState.editingId = id;
+  habitEditEmoji = h.emoji;
+  habitEditColor = h.color;
+  showHabitModal(h);
+}
+
+function showHabitModal(h) {
+  document.getElementById('habitModalTitle').textContent = h.id ? '编辑习惯' : '新建习惯';
+  document.getElementById('habitInputTitle').value = h.title || '';
+  document.getElementById('btnDeleteHabit').style.display = h.id ? 'block' : 'none';
+  renderEmojiPicker();
+  renderHabitColorPicker();
+  document.getElementById('habitOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('habitInputTitle').focus(), 350);
+}
+
+function closeHabitModal() {
+  document.getElementById('habitOverlay').classList.remove('open');
+  habitState.editingId = null;
+}
+
+function saveHabit() {
+  const title = document.getElementById('habitInputTitle').value.trim();
+  if (!title) { showToast('请输入习惯名称'); return; }
+
+  if (habitState.editingId) {
+    const idx = habitState.habits.findIndex(h => h.id === habitState.editingId);
+    if (idx !== -1) {
+      habitState.habits[idx] = {
+        ...habitState.habits[idx],
+        title, emoji: habitEditEmoji, color: habitEditColor, updatedAt: Date.now()
+      };
+    }
+  } else {
+    habitState.habits.push({
+      id: uid(), title, emoji: habitEditEmoji, color: habitEditColor,
+      completedDates: [], createdAt: Date.now(), updatedAt: Date.now()
+    });
+  }
+
+  saveHabits();
+  closeHabitModal();
+  renderAll();
+  showToast(habitState.editingId ? '已保存' : '习惯已创建');
+}
+
+function deleteHabit() {
+  if (!habitState.editingId) return;
+  if (!confirm('确定删除这个习惯吗？')) return;
+  habitState.habits = habitState.habits.filter(h => h.id !== habitState.editingId);
+  saveHabits();
+  closeHabitModal();
+  renderAll();
+  showToast('已删除');
+}
+
+function renderEmojiPicker() {
+  const el = document.getElementById('emojiPicker');
+  el.innerHTML = HABIT_EMOJIS.map(e => `
+    <button class="emoji-btn${e === habitEditEmoji ? ' selected' : ''}" data-emoji="${e}" type="button">${e}</button>
+  `).join('');
+  el.querySelectorAll('.emoji-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      habitEditEmoji = btn.dataset.emoji;
+      renderEmojiPicker();
+    });
+  });
+}
+
+function renderHabitColorPicker() {
+  const el = document.getElementById('habitColorPicker');
+  el.innerHTML = COLORS.map(c => `
+    <div class="color-dot ${c === habitEditColor ? 'selected' : ''}" data-color="${c}" style="background:${c}"></div>
+  `).join('');
+  el.querySelectorAll('.color-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      habitEditColor = dot.dataset.color;
+      renderHabitColorPicker();
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// ─── Rich text editor toolbar ─────────────────────────
+// ═══════════════════════════════════════════════════════
+
+function initRichtextToolbar() {
+  const editor = document.getElementById('richtextEditor');
+  let savedRange = null;
+
+  // Save selection when editor loses focus (so toolbar buttons can restore it)
+  editor.addEventListener('blur', () => {
+    const sel = window.getSelection();
+    if (sel.rangeCount) savedRange = sel.getRangeAt(0).cloneRange();
+  });
+
+  function restoreSelection() {
+    if (savedRange) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    }
+  }
+
+  function exec(cmd, val) {
+    editor.focus();
+    restoreSelection();
+    document.execCommand(cmd, false, val);
+    savedRange = null;
+  }
+
+  // Bold
+  document.querySelector('[data-cmd="bold"]').addEventListener('mousedown', e => {
+    e.preventDefault();
+    exec('bold');
+  });
+
+  // Underline
+  document.querySelector('[data-cmd="underline"]').addEventListener('mousedown', e => {
+    e.preventDefault();
+    exec('underline');
+  });
+
+  // Color picker toggle
+  document.getElementById('btnRtColor').addEventListener('mousedown', e => {
+    e.preventDefault();
+    restoreSelection();
+    editor.focus();
+    document.getElementById('rtColorDD').classList.toggle('open');
+  });
+
+  // Color dots
+  document.querySelectorAll('.rt-color-dot').forEach(dot => {
+    dot.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const color = dot.dataset.color;
+      exec('foreColor', color);
+      document.getElementById('rtColorDD').classList.remove('open');
+    });
+  });
+
+  // Close color dropdown when clicking outside
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('rtColorWrap');
+    if (!wrap.contains(e.target)) {
+      document.getElementById('rtColorDD').classList.remove('open');
+    }
+  });
+
+  // Image upload
+  document.getElementById('btnRtImage').addEventListener('mousedown', e => {
+    e.preventDefault();
+    document.getElementById('rtImageInput').click();
+  });
+  document.getElementById('rtImageInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      editor.focus();
+      restoreSelection();
+      document.execCommand('insertImage', false, reader.result);
+      savedRange = null;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+}
+
 // ─── Init ──────────────────────────────────────────────
 function init() {
   load();
@@ -969,16 +2072,23 @@ function init() {
   document.getElementById('btnMenu').addEventListener('click', toggleMenu);
   document.getElementById('btnExport').addEventListener('click', exportData);
   document.getElementById('btnImportTrigger').addEventListener('click', () => document.getElementById('fileImport').click());
+  document.getElementById('btnClipboardImport').addEventListener('click', importFromClipboard);
   document.getElementById('fileImport').addEventListener('change', e => {
     importData(e.target.files[0]);
     e.target.value = '';
   });
   document.getElementById('searchInput').addEventListener('input', e => {
     state.searchQuery = e.target.value;
-    renderList();
+    if (state.currentTab === 'notes') renderNoteList();
+    else if (state.currentTab === 'habits') renderHabitList();
+    else renderList();
   });
 
-  document.getElementById('fab').addEventListener('click', openNew);
+  document.getElementById('fab').addEventListener('click', () => {
+    if (state.currentTab === 'habits') openNewHabit();
+    else if (state.currentTab === 'notes') openNewNote();
+    else openNew();
+  });
   document.getElementById('overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('overlay')) closeModal();
   });
@@ -996,16 +2106,57 @@ function init() {
   document.querySelectorAll('.nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
       state.currentTab = btn.dataset.tab;
+      state.searchQuery = '';
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchBar').classList.remove('open');
       closeAllSwipes();
+      closeAllNoteSwipes();
+      closeAllHabitSwipes();
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll('.archive-subtab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.archiveSubTab = btn.dataset.archive;
+      closeAllSwipes();
+      closeAllNoteSwipes();
       renderAll();
     });
   });
 
   renderAll();
+  requestNotifPermission();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// ─── Notes init ──────────────────────────────────────────
+function initNotes() {
+  loadNotes();
+  document.getElementById('noteOverlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('noteOverlay')) closeNoteModal();
+  });
+  document.getElementById('btnCloseNoteModal').addEventListener('click', closeNoteModal);
+  document.getElementById('btnSaveNote').addEventListener('click', saveNote);
+  document.getElementById('btnDeleteNote').addEventListener('click', deleteNote);
+  document.getElementById('btnNoteAddTag').addEventListener('click', addNoteTag);
+  document.getElementById('noteTagInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addNoteTag(); }
+  });
+  initRichtextToolbar();
+}
+
+function initHabits() {
+  loadHabits();
+  document.getElementById('habitOverlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('habitOverlay')) closeHabitModal();
+  });
+  document.getElementById('btnCloseHabitModal').addEventListener('click', closeHabitModal);
+  document.getElementById('btnSaveHabit').addEventListener('click', saveHabit);
+  document.getElementById('btnDeleteHabit').addEventListener('click', deleteHabit);
+}
+
+document.addEventListener('DOMContentLoaded', () => { init(); initNotes(); initHabits(); });

@@ -49,12 +49,27 @@
       </svg>
       导入备忘录
     </button>
+    <div class="menu-divider"></div>
+    <button class="menu-action" id="btnClipboardImport">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <rect x="8" y="2" width="8" height="4" rx="1"/>
+        <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/>
+      </svg>
+      从剪贴板导入
+    </button>
   </div>
 </header>
 <input type="file" id="fileImport" accept=".json" style="display:none">
 
 <!-- Tags bar -->
 <div class="tags-bar" id="tagsBar"></div>
+
+<!-- Archive sub-tabs -->
+<div class="archive-subtabs" id="archiveSubtabs" style="display:none">
+  <button class="archive-subtab active" data-archive="memos">备忘</button>
+  <button class="archive-subtab" data-archive="notes">小记</button>
+  <button class="archive-subtab" data-archive="habits">打卡</button>
+</div>
 
 <!-- Memo list -->
 <main class="content">
@@ -118,9 +133,110 @@
       <div class="color-picker" id="colorPicker"></div>
     </div>
 
+    <div>
+      <div class="field-label">优先级</div>
+      <div class="priority-selector" id="prioritySelector"></div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn-delete" id="btnDelete" style="display:none">删除</button>
       <button class="btn-save" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Modal -->
+<div class="overlay" id="noteOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="noteModalTitle">新建小记</h2>
+      <button class="icon-btn" id="btnCloseNoteModal" style="color:var(--text-secondary)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div>
+      <div class="field-label">标题</div>
+      <input class="input-title" id="noteInputTitle" type="text" placeholder="小记标题…" maxlength="100">
+    </div>
+    <div>
+      <div class="field-label">内容</div>
+      <div class="richtext-toolbar" id="richtextToolbar">
+        <button class="rt-btn" data-cmd="bold" type="button" aria-label="加粗">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+        </button>
+        <button class="rt-btn" data-cmd="underline" type="button" aria-label="下划线">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+        </button>
+        <div class="rt-color-wrap" id="rtColorWrap">
+          <button class="rt-btn" id="btnRtColor" type="button" aria-label="文字颜色">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          </button>
+          <div class="rt-color-dd" id="rtColorDD">
+            <span class="rt-color-dot" style="background:#ef4444" data-color="#ef4444"></span>
+            <span class="rt-color-dot" style="background:#f59e0b" data-color="#f59e0b"></span>
+            <span class="rt-color-dot" style="background:#10b981" data-color="#10b981"></span>
+            <span class="rt-color-dot" style="background:#3b82f6" data-color="#3b82f6"></span>
+            <span class="rt-color-dot" style="background:#8b5cf6" data-color="#8b5cf6"></span>
+            <span class="rt-color-dot" style="background:#ec4899" data-color="#ec4899"></span>
+            <span class="rt-color-dot" style="background:#78716c" data-color="#78716c"></span>
+            <span class="rt-color-dot" style="background:#1c1d2e" data-color="#1c1d2e"></span>
+          </div>
+        </div>
+        <span class="rt-sep"></span>
+        <button class="rt-btn" id="btnRtImage" type="button" aria-label="插入图片">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </button>
+        <input type="file" id="rtImageInput" accept="image/*" style="display:none">
+      </div>
+      <div class="richtext-editor" id="richtextEditor" contenteditable="true" placeholder="记录你想记录的内容…"></div>
+    </div>
+    <div>
+      <div class="field-label">标签</div>
+      <div class="tag-selector" id="noteTagSelector"></div>
+      <div class="tag-input-row" style="margin-top:10px">
+        <input type="text" id="noteTagInput" placeholder="新标签名…" maxlength="20">
+        <button id="btnNoteAddTag">添加</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDeleteNote" style="display:none">删除</button>
+      <button class="btn-save" id="btnSaveNote">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Habit Modal -->
+<div class="overlay" id="habitOverlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="habitModalTitle">新建习惯</h2>
+      <button class="icon-btn" id="btnCloseHabitModal" style="color:var(--text-secondary)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div>
+      <div class="field-label">图标</div>
+      <div class="emoji-picker" id="emojiPicker"></div>
+    </div>
+    <div>
+      <div class="field-label">习惯名称</div>
+      <input class="input-title" id="habitInputTitle" type="text" placeholder="习惯名称…" maxlength="30">
+    </div>
+    <div>
+      <div class="field-label">颜色</div>
+      <div class="color-picker" id="habitColorPicker"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnDeleteHabit" style="display:none">删除</button>
+      <button class="btn-save" id="btnSaveHabit">保存</button>
     </div>
   </div>
 </div>
@@ -136,6 +252,22 @@
       <path d="M9 12h6M9 16h4M5 3h14a2 2 0 012 2v16a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/>
     </svg>
     <span>备忘</span>
+  </button>
+  <button class="nav-item" data-tab="notes">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <span>小记</span>
+  </button>
+  <button class="nav-item" data-tab="habits">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M9 11l3 3L22 4"/>
+      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    </svg>
+    <span>打卡</span>
   </button>
   <button class="nav-item" data-tab="archive">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
