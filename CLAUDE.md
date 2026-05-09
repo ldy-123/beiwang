@@ -45,6 +45,7 @@
 - **标签系统**：备忘和小记各有独立标签体系，标签栏支持长按拖拽排序（300ms 触发）。CSS 包含 `user-select: none` + `-webkit-touch-callout: none` + `touch-action: manipulation` 防止 Android 系统弹出上下文菜单。
 - **小记展开/收起**：点击卡片调用 `toggleNoteExpand()`，展开显示完整 HTML 内容，收起显示纯文本预览。展开状态保存在 `expandedNoteIds` Set 中，切 tab 或切标签时自动清空。长按 500ms 进入编辑。
 - **小记置顶**：左滑露出「置顶」按钮，调用 `pinNote()`。置顶小记在 `filteredNotes()` 中排在前面，多条按最新置顶时间 `pinnedAt` 倒序。
+- **小记⋯编辑菜单**：每条小记卡片右上角有 `⋯` 按钮，点击弹出全局下拉菜单（`#noteCardMenu`），含「✏️ 编辑」选项，调用 `openEditNote()`。菜单按钮通过 stopPropagation 阻止触发展开/收起和长按编辑。全局只有一个 dropdown 实例（`initNotes()` 中创建），通过 `_openNoteCardMenu()` / `_closeNoteCardMenu()` 定位和显隐。`_bindNoteCardMenu()` 在每次 `renderNoteList()` 和 `renderArchiveAll()` 后调用。
 - **归档**：三个模块共用归档页，顶部有子 tab（备忘/小记/打卡）。归档项标记 `archived: true`，非真删除。
 - **弹窗**：底部弹出式，各模块各有独立 overlay + modal。小记弹窗已做紧凑化，标题和内容区域去掉了 field-label。
 - **富文本编辑器**：小记模块使用 `contenteditable` div + 工具栏（加粗、下划线、颜色、base64 图片插入）。编辑器失焦时保存 Selection，工具栏按钮 mousedown 时恢复，避免焦点丢失导致 execCommand 失效。
