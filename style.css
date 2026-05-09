@@ -104,7 +104,7 @@ html, body {
 /* ─── Tags bar ─── */
 .tags-bar {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 52px);
+  top: calc(env(safe-area-inset-top) + 48px);
   left: 0; right: 0; z-index: 99;
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(16px);
@@ -140,7 +140,7 @@ html, body {
 
 /* ─── Content ─── */
 .content {
-  margin-top: calc(env(safe-area-inset-top) + 52px + var(--tags-bar-h, 44px));
+  margin-top: calc(env(safe-area-inset-top) + 48px + var(--tags-bar-h, 44px));
   padding: 12px 12px calc(120px + env(safe-area-inset-bottom));
   min-height: 100vh;
 }
@@ -754,7 +754,7 @@ html, body {
 /* ─── Archive sub-tabs ─── */
 .archive-subtabs {
   position: fixed;
-  top: calc(env(safe-area-inset-top) + 52px);
+  top: calc(env(safe-area-inset-top) + 48px);
   left: 0; right: 0; z-index: 99;
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(16px);

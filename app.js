@@ -421,7 +421,8 @@ function renderAll() {
   }
 
   document.getElementById('tagsBar').style.display = (inArchive || isHabits) ? 'none' : '';
-  document.documentElement.style.setProperty('--tags-bar-h', (inArchive || isHabits) ? '0px' : '44px');
+  document.documentElement.style.setProperty('--tags-bar-h',
+    inArchive ? '42px' : isHabits ? '0px' : '44px');
   document.getElementById('archiveSubtabs').style.display = inArchive ? 'flex' : 'none';
   document.getElementById('fab').style.display = inArchive ? 'none' : '';
 
