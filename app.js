@@ -80,6 +80,7 @@ let noteState = {
   activeTag: 'all',
   editingId: null,
 };
+let expandedNoteIds = new Set();
 
 function loadNotes() {
   try { noteState.notes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; }
@@ -167,13 +168,13 @@ function getOrderedTags() {
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
 function fmtDate(ts) {
-  const d = new Date(ts), now = new Date();
-  if (d.toDateString() === now.toDateString()) {
-    return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-  }
-  const diff = (now - d) / 86400000;
-  if (diff < 7) return `${Math.floor(diff) || 1} 天前`;
-  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${h}:${min}`;
 }
 
 function toLocalISO(d) {
@@ -236,7 +237,49 @@ function filteredNotes() {
     const plainText = stripHtml(n.content || '');
     const matchSearch = !q || n.title.toLowerCase().includes(q) || plainText.toLowerCase().includes(q);
     return !n.archived && matchTag && matchSearch;
-  }).sort((a, b) => b.updatedAt - a.updatedAt);
+  }).sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    if (a.pinned && b.pinned) return (b.pinnedAt || 0) - (a.pinnedAt || 0);
+    return b.updatedAt - a.updatedAt;
+  });
+}
+
+function pinNote(id) {
+  const n = noteState.notes.find(x => x.id === id);
+  if (!n) return;
+  if (n.pinned) {
+    n.pinned = false;
+    n.pinnedAt = null;
+  } else {
+    n.pinned = true;
+    n.pinnedAt = Date.now();
+  }
+  saveNotes();
+  renderNoteList();
+  showToast(n.pinned ? '已置顶' : '已取消置顶');
+}
+
+function toggleNoteExpand(id, card) {
+  if (expandedNoteIds.has(id)) {
+    expandedNoteIds.delete(id);
+    card.classList.remove('expanded');
+    const preview = card.querySelector('.note-card-preview');
+    const full = card.querySelector('.note-card-full');
+    const toggle = card.querySelector('.note-card-toggle');
+    if (preview) preview.style.display = '';
+    if (full) full.style.display = 'none';
+    if (toggle) toggle.textContent = '展开';
+  } else {
+    expandedNoteIds.add(id);
+    card.classList.add('expanded');
+    const preview = card.querySelector('.note-card-preview');
+    const full = card.querySelector('.note-card-full');
+    const toggle = card.querySelector('.note-card-toggle');
+    if (preview) preview.style.display = 'none';
+    if (full) full.style.display = '';
+    if (toggle) toggle.textContent = '收起';
+  }
 }
 
 function stripHtml(html) {
@@ -378,6 +421,7 @@ function renderAll() {
   }
 
   document.getElementById('tagsBar').style.display = (inArchive || isHabits) ? 'none' : '';
+  document.documentElement.style.setProperty('--tags-bar-h', (inArchive || isHabits) ? '0px' : '44px');
   document.getElementById('archiveSubtabs').style.display = inArchive ? 'flex' : 'none';
   document.getElementById('fab').style.display = inArchive ? 'none' : '';
 
@@ -463,9 +507,9 @@ function renderArchiveAll() {
       </div>`;
     } else {
       const plain = stripHtml(item.content || '');
-      const trimmed = plain.length > 100 ? plain.slice(0, 100) + '…' : plain;
-      const hasMore = plain.length > 100;
+      const trimmed = plain.length > 80 ? plain.slice(0, 80) + '…' : plain;
       const escapedPreview = escHtml(trimmed);
+      const hasContent = plain.length > 0;
       return `
       <div class="note-swipe-item" data-id="${item.id}">
         <div class="swipe-actions">
@@ -474,11 +518,11 @@ function renderArchiveAll() {
         </div>
         <div class="note-card" data-id="${item.id}">
           <h3>${escHtml(item.title || '无标题')}</h3>
-          ${escapedPreview ? `
-            <div class="note-card-preview${hasMore ? ' note-card-has-more' : ''}" data-full="${escHtml(plain)}" data-collapsed="${escapedPreview}">
-              ${escapedPreview}
-            </div>` : ''}
+          ${hasContent ? `
+            <div class="note-card-preview">${escapedPreview}</div>
+            <div class="note-card-full" style="display:none">${item.content || ''}</div>` : ''}
           <div class="note-card-footer">
+            ${hasContent ? '<span class="note-card-toggle">展开</span>' : '<span></span>'}
             <div class="note-card-tags">
               ${(item.tags || []).map(t => `<span class="note-card-tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">${escHtml(t)}</span>`).join('')}
             </div>
@@ -498,19 +542,7 @@ function renderArchiveAll() {
   list.querySelectorAll('.note-card').forEach(card => {
     card.addEventListener('click', () => {
       if (noteSwipeOpenId === card.dataset.id) return;
-      openEditNote(card.dataset.id);
-    });
-  });
-  list.querySelectorAll('.note-card-preview').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      if (el.classList.contains('expanded')) {
-        el.classList.remove('expanded');
-        el.textContent = el.dataset.collapsed;
-      } else {
-        el.classList.add('expanded');
-        el.textContent = el.dataset.full;
-      }
+      toggleNoteExpand(card.dataset.id, card);
     });
   });
   list.querySelectorAll('.sa-restore').forEach(btn => {
@@ -1390,8 +1422,12 @@ function renderNoteTagsBar() {
   const tags = getAllNoteTags();
   if (!tags.length) {
     bar.innerHTML = '';
+    bar.style.display = 'none';
+    document.documentElement.style.setProperty('--tags-bar-h', '0px');
     return;
   }
+  bar.style.display = '';
+  document.documentElement.style.setProperty('--tags-bar-h', '44px');
   bar.innerHTML = `
     <button class="tag-chip ${noteState.activeTag === 'all' ? 'active' : ''}" data-note-tag="all">全部</button>
     ${tags.map(t => `
@@ -1403,6 +1439,7 @@ function renderNoteTagsBar() {
   bar.querySelectorAll('.tag-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       noteState.activeTag = btn.dataset.noteTag;
+      expandedNoteIds.clear();
       renderNoteAll();
     });
     btn.addEventListener('contextmenu', e => e.preventDefault());
@@ -1411,24 +1448,27 @@ function renderNoteTagsBar() {
 
 function _noteCardHTML(n) {
   const plain = stripHtml(n.content || '');
-  const trimmed = plain.length > 100 ? plain.slice(0, 100) + '…' : plain;
-  const hasMore = plain.length > 100;
+  const trimmed = plain.length > 80 ? plain.slice(0, 80) + '…' : plain;
   const escapedPreview = escHtml(trimmed);
+  const hasContent = plain.length > 0;
+  const isExpanded = expandedNoteIds.has(n.id);
   return `
   <div class="note-swipe-item" data-id="${n.id}">
     <div class="swipe-actions">
-      <button class="note-sa-archive" data-id="${n.id}">完成</button>
       <button class="note-sa-del" data-id="${n.id}">删除</button>
+      <button class="note-sa-archive" data-id="${n.id}">完成</button>
+      <button class="note-sa-pin${n.pinned ? ' is-pinned' : ''}" data-id="${n.id}">${n.pinned ? '取消' : '置顶'}</button>
     </div>
-    <div class="note-card" data-id="${n.id}">
+    <div class="note-card${isExpanded ? ' expanded' : ''}${n.pinned ? ' pinned' : ''}" data-id="${n.id}">
+      ${n.pinned ? '<span class="note-pin-badge">📌 置顶</span>' : ''}
       <h3>${escHtml(n.title || '无标题')}</h3>
-      ${escapedPreview ? `
-        <div class="note-card-preview${hasMore ? ' note-card-has-more' : ''}" data-full="${escHtml(plain)}" data-collapsed="${escapedPreview}">
-          ${escapedPreview}
-        </div>` : ''}
+      ${hasContent ? `
+        <div class="note-card-preview"${isExpanded ? ' style="display:none"' : ''}>${escapedPreview}</div>
+        <div class="note-card-full"${isExpanded ? '' : ' style="display:none"'}>${n.content || ''}</div>` : ''}
       <div class="note-card-footer">
+        ${hasContent ? `<span class="note-card-toggle">${isExpanded ? '收起' : '展开'}</span>` : '<span></span>'}
         <div class="note-card-tags">
-          ${n.tags.map(t => `
+          ${(n.tags || []).map(t => `
             <span class="note-card-tag" style="background:${tagColor(t)}22;color:${tagColor(t)}">
               ${escHtml(t)}
             </span>
@@ -1458,31 +1498,42 @@ function renderNoteList() {
   }
   list.innerHTML = notes.map(_noteCardHTML).join('');
 
-  list.querySelectorAll('.note-card').forEach(card => {
-    card.addEventListener('click', () => {
-      if (noteSwipeOpenId === card.dataset.id) return;
-      openEditNote(card.dataset.id);
-    });
-  });
-  list.querySelectorAll('.note-card-preview').forEach(el => {
-    el.addEventListener('click', e => {
-      e.stopPropagation();
-      if (el.classList.contains('expanded')) {
-        el.classList.remove('expanded');
-        el.textContent = el.dataset.collapsed;
-      } else {
-        el.classList.add('expanded');
-        el.textContent = el.dataset.full;
-      }
-    });
-  });
   list.querySelectorAll('.note-sa-archive').forEach(btn => {
     btn.addEventListener('click', () => archiveNote(btn.dataset.id));
   });
   list.querySelectorAll('.note-sa-del').forEach(btn => {
     btn.addEventListener('click', () => deleteNoteById(btn.dataset.id));
   });
+  list.querySelectorAll('.note-sa-pin').forEach(btn => {
+    btn.addEventListener('click', () => pinNote(btn.dataset.id));
+  });
   initNoteSwipes();
+
+  list.querySelectorAll('.note-card').forEach(card => {
+    card.addEventListener('click', () => {
+      if (noteSwipeOpenId === card.dataset.id) return;
+      toggleNoteExpand(card.dataset.id, card);
+    });
+    let pressTimer;
+    card.addEventListener('touchstart', e => {
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        if (navigator.vibrate) navigator.vibrate(15);
+        openEditNote(card.dataset.id);
+      }, 500);
+    }, { passive: true });
+    card.addEventListener('touchmove', () => { clearTimeout(pressTimer); pressTimer = null; });
+    card.addEventListener('touchend', () => { clearTimeout(pressTimer); pressTimer = null; });
+    card.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        openEditNote(card.dataset.id);
+      }, 500);
+    });
+    card.addEventListener('mousemove', () => { clearTimeout(pressTimer); pressTimer = null; });
+    card.addEventListener('mouseup', () => { clearTimeout(pressTimer); pressTimer = null; });
+  });
 }
 
 function renderNoteAll() {
@@ -2112,6 +2163,7 @@ function init() {
       closeAllSwipes();
       closeAllNoteSwipes();
       closeAllHabitSwipes();
+      expandedNoteIds.clear();
       renderAll();
     });
   });
