@@ -518,7 +518,8 @@ function renderArchiveAll() {
           <button class="note-sa-del" data-id="${item.id}">删除</button>
         </div>
         <div class="note-card" data-id="${item.id}">
-          <h3>${escHtml(item.title || '无标题')}</h3>
+          <button class="note-card-menu-btn" data-id="${item.id}" data-action="menu">⋯</button>
+          <h3 style="padding-right:28px">${escHtml(item.title || '无标题')}</h3>
           ${hasContent ? `
             <div class="note-card-preview">${escapedPreview}</div>
             <div class="note-card-full" style="display:none">${item.content || ''}</div>` : ''}
@@ -540,6 +541,7 @@ function renderArchiveAll() {
       openEdit(card.dataset.id);
     });
   });
+  _bindNoteCardMenu();
   list.querySelectorAll('.note-card').forEach(card => {
     card.addEventListener('click', () => {
       if (noteSwipeOpenId === card.dataset.id) return;
@@ -1461,8 +1463,9 @@ function _noteCardHTML(n) {
       <button class="note-sa-pin${n.pinned ? ' is-pinned' : ''}" data-id="${n.id}">${n.pinned ? '取消' : '置顶'}</button>
     </div>
     <div class="note-card${isExpanded ? ' expanded' : ''}${n.pinned ? ' pinned' : ''}" data-id="${n.id}">
+      <button class="note-card-menu-btn" data-id="${n.id}" data-action="menu">⋯</button>
       ${n.pinned ? '<span class="note-pin-badge">📌 置顶</span>' : ''}
-      <h3>${escHtml(n.title || '无标题')}</h3>
+      <h3 style="padding-right:28px">${escHtml(n.title || '无标题')}</h3>
       ${hasContent ? `
         <div class="note-card-preview"${isExpanded ? ' style="display:none"' : ''}>${escapedPreview}</div>
         <div class="note-card-full"${isExpanded ? '' : ' style="display:none"'}>${n.content || ''}</div>` : ''}
@@ -1509,6 +1512,8 @@ function renderNoteList() {
     btn.addEventListener('click', () => pinNote(btn.dataset.id));
   });
   initNoteSwipes();
+
+  _bindNoteCardMenu();
 
   list.querySelectorAll('.note-card').forEach(card => {
     card.addEventListener('click', () => {
@@ -2186,9 +2191,54 @@ function init() {
   }
 }
 
+// ─── Note card menu ────────────────────────────────────
+let noteCardMenuId = null;
+
+function _openNoteCardMenu(id, btn) {
+  noteCardMenuId = id;
+  const dd = document.getElementById('noteCardMenu');
+  const r = btn.getBoundingClientRect();
+  dd.style.top = (r.bottom + 4) + 'px';
+  dd.style.right = (window.innerWidth - r.right) + 'px';
+  dd.classList.add('open');
+}
+
+function _closeNoteCardMenu() {
+  noteCardMenuId = null;
+  document.getElementById('noteCardMenu').classList.remove('open');
+}
+
+function _bindNoteCardMenu() {
+  document.querySelectorAll('.note-card-menu-btn[data-action="menu"]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _openNoteCardMenu(btn.dataset.id, btn);
+    });
+    btn.addEventListener('mousedown', e => e.stopPropagation());
+    btn.addEventListener('touchstart', e => e.stopPropagation());
+  });
+}
+
 // ─── Notes init ──────────────────────────────────────────
 function initNotes() {
   loadNotes();
+
+  // Create global note card menu dropdown
+  const dd = document.createElement('div');
+  dd.id = 'noteCardMenu';
+  dd.className = 'note-card-menu-dd';
+  dd.innerHTML = '<button class="note-card-menu-item" data-action="edit">✏️ 编辑</button>';
+  document.body.appendChild(dd);
+  dd.querySelector('[data-action="edit"]').addEventListener('click', () => {
+    if (noteCardMenuId) openEditNote(noteCardMenuId);
+    _closeNoteCardMenu();
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.note-card-menu-btn') && !e.target.closest('#noteCardMenu')) {
+      _closeNoteCardMenu();
+    }
+  });
+
   document.getElementById('noteOverlay').addEventListener('click', e => {
     if (e.target === document.getElementById('noteOverlay')) closeNoteModal();
   });

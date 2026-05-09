@@ -26,8 +26,8 @@
   --text-2:      #6b7280;
   --text-3:      #9ca3af;
   --text-secondary: #6b7280;
-  --radius:      8px;
-  --radius-sm:   6px;
+  --radius:      12px;
+  --radius-sm:   8px;
   --shadow-sm:   0 1px 2px rgba(0,0,0,0.04);
   --shadow-md:   0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
 }
@@ -62,7 +62,7 @@ html, body {
   background: var(--surface); border: 1px solid var(--border); cursor: pointer;
   color: var(--text-2); width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 6px; transition: all .15s;
+  border-radius: 10px; transition: all .15s;
 }
 .icon-btn:active { background: var(--surface-3); border-color: var(--border-hi); }
 .icon-btn svg { width: 18px; height: 18px; }
@@ -232,7 +232,7 @@ html, body {
 }
 .memo-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .memo-tag {
-  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
   font-weight: 600; border: 1px solid currentColor; opacity: .85;
 }
 .memo-date { font-size: 11px; color: var(--text-3); font-weight: 500; }
@@ -258,14 +258,14 @@ html, body {
 .card-todo-more { font-size: 11px; color: var(--text-3); padding-left: 11px; margin-top: 1px; font-weight: 500; }
 .card-progress {
   font-size: 11px; font-weight: 600; color: var(--primary-d);
-  background: var(--primary-dim); padding: 2px 7px; border-radius: 4px;
+  background: var(--primary-dim); padding: 2px 7px; border-radius: 8px;
   border: 1px solid rgba(99,102,241,0.12);
 }
 
 /* ─── FAB ─── */
 .fab {
   position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); right: 16px; z-index: 200;
-  width: 48px; height: 48px; border-radius: 14px;
+  width: 48px; height: 48px; border-radius: 16px;
   background: var(--primary); color: #fff; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 8px rgba(99,102,241,0.30);
@@ -356,7 +356,7 @@ html, body {
 .todo-collapse {
   flex-shrink: 0; width: 22px; height: 22px; border: none; background: none;
   cursor: pointer; color: var(--primary); display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; padding: 0; transition: background .15s;
+  border-radius: 6px; padding: 0; transition: background .15s;
 }
 .todo-collapse svg { width: 14px; height: 14px; }
 .todo-collapse:active { background: var(--primary-dim); }
@@ -414,7 +414,7 @@ html, body {
 .todo-time-tag {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 11px; font-weight: 600; color: var(--primary-d);
-  background: var(--primary-dim); border-radius: 4px; padding: 3px 7px;
+  background: var(--primary-dim); border-radius: 8px; padding: 3px 7px;
   width: fit-content; cursor: pointer; border: 1px solid rgba(99,102,241,0.12);
 }
 .todo-time-tag.overdue { color: var(--red); background: var(--red-dim); border-color: rgba(239,68,68,0.12); }
@@ -449,7 +449,7 @@ html, body {
 /* Tag selector */
 .tag-selector { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
 .sel-tag {
-  border: 1px solid var(--border); cursor: pointer; border-radius: 4px;
+  border: 1px solid var(--border); cursor: pointer; border-radius: 10px;
   padding: 5px 11px; font-size: 12px; font-weight: 600;
   transition: all .15s; -webkit-tap-highlight-color: transparent; font-family: inherit;
 }
@@ -473,7 +473,7 @@ html, body {
 .edit-tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
 .edit-tag {
   display: flex; align-items: center; gap: 4px;
-  padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;
+  padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 600;
   cursor: pointer; border: 1px solid var(--border);
 }
 .edit-tag span { font-size: 13px; line-height: 1; opacity: .7; }
@@ -509,7 +509,7 @@ html, body {
   transform: translateX(-50%) translateY(16px);
   background: var(--text); color: #fff;
   border: none;
-  padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  padding: 8px 18px; border-radius: 10px; font-size: 13px; font-weight: 600;
   opacity: 0; transition: all .2s; pointer-events: none; z-index: 500; white-space: nowrap;
   box-shadow: 0 2px 12px rgba(0,0,0,0.12);
 }
@@ -560,7 +560,7 @@ html, body {
   background: var(--surface-3); border: none; cursor: pointer; font-size: 16px; line-height: 1;
   color: var(--text-2); width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 6px; transition: all .15s; font-weight: 600;
+  border-radius: 8px; transition: all .15s; font-weight: 600;
 }
 .dp-nav:active { background: var(--border-hi); }
 .dp-wdays {
@@ -574,7 +574,7 @@ html, body {
 }
 .dp-cell {
   aspect-ratio: 1; border: none; background: none; cursor: pointer;
-  border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--text-2);
+  border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--text-2);
   display: flex; align-items: center; justify-content: center; transition: background .12s;
 }
 .dp-cell:empty { pointer-events: none; }
@@ -590,7 +590,7 @@ html, body {
 .dp-time-lbl { font-size: 11px; font-weight: 600; color: var(--text-3); }
 .dp-hm { display: flex; align-items: center; gap: 4px; }
 .dp-hm-in {
-  width: 44px; text-align: center; border: 1px solid var(--border); border-radius: 6px;
+  width: 44px; text-align: center; border: 1px solid var(--border); border-radius: 8px;
   background: var(--surface);
   font-size: 18px; font-weight: 700; padding: 4px 0; outline: none;
   color: var(--text); font-family: inherit; transition: border-color .15s, box-shadow .15s;
@@ -605,13 +605,13 @@ html, body {
   border-top: 1px solid var(--border);
 }
 .dp-clear {
-  background: none; border: 1px solid var(--border); border-radius: 6px;
+  background: none; border: 1px solid var(--border); border-radius: 8px;
   padding: 7px 14px; font-size: 13px; cursor: pointer; color: var(--text-2);
   font-family: inherit; font-weight: 600; transition: all .15s;
 }
 .dp-clear:active { border-color: var(--red); color: var(--red); }
 .dp-ok {
-  background: var(--primary); border: none; border-radius: 6px;
+  background: var(--primary); border: none; border-radius: 8px;
   padding: 7px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
   color: #fff; font-family: inherit;
   transition: background .15s, transform .1s;
@@ -630,7 +630,7 @@ html, body {
 }
 .rt-btn {
   width: 26px; height: 26px; border: none; background: none;
-  cursor: pointer; border-radius: 4px;
+  cursor: pointer; border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-2); transition: all .15s;
 }
@@ -723,15 +723,47 @@ html, body {
 }
 .note-pin-badge {
   font-size: 10px; font-weight: 600; color: var(--primary-d);
-  background: var(--primary-dim); padding: 2px 7px; border-radius: 4px;
+  background: var(--primary-dim); padding: 2px 7px; border-radius: 8px;
   display: inline-block; margin-bottom: 4px;
 }
 .note-card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .note-card-tag {
-  font-size: 10px; padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
   font-weight: 600; border: 1px solid currentColor; opacity: .85;
 }
 .note-card-date { font-size: 11px; color: var(--text-3); font-weight: 500; }
+
+.note-card-menu-btn {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  width: 28px; height: 28px; border: none; background: none;
+  cursor: pointer; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); font-size: 16px; font-weight: 700;
+  letter-spacing: 1px; transition: all .15s; font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.note-card-menu-btn:active { background: var(--surface-3); color: var(--text); }
+
+.note-card-menu-dd {
+  position: fixed; z-index: 500;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  padding: 4px; min-width: 100px;
+  display: none;
+  animation: dp-pop .14s cubic-bezier(.32,0,.15,1);
+}
+.note-card-menu-dd.open { display: block; }
+.note-card-menu-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; border: none; background: none;
+  cursor: pointer; padding: 10px 12px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  border-radius: 6px; font-family: inherit;
+  transition: background .12s;
+}
+.note-card-menu-item:active { background: var(--surface-3); }
 
 /* Note swipe */
 .note-swipe-item { position: relative; border-radius: var(--radius); overflow: hidden; }
@@ -798,7 +830,7 @@ html, body {
 .habit-emoji {
   font-size: 26px; flex-shrink: 0;
   width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-  background: var(--surface-2); border-radius: 8px;
+  background: var(--surface-2); border-radius: 10px;
 }
 .habit-info { min-width: 0; }
 .habit-info h3 {
@@ -807,7 +839,7 @@ html, body {
 }
 .habit-streak {
   font-size: 11px; font-weight: 600; color: var(--primary-d);
-  background: var(--primary-dim); padding: 1px 7px; border-radius: 4px;
+  background: var(--primary-dim); padding: 1px 7px; border-radius: 8px;
   margin-top: 4px; display: inline-block;
 }
 .habit-week {
@@ -855,7 +887,7 @@ html, body {
 .emoji-btn {
   width: 100%; aspect-ratio: 1; border: 1px solid transparent;
   background: none; cursor: pointer; font-size: 22px;
-  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
   transition: all .15s;
 }
 .emoji-btn:active { transform: scale(.92); }
@@ -878,6 +910,6 @@ html, body {
 
 /* ─── Priority badge (on cards) ─── */
 .prio-badge {
-  font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 6px;
   border: 1px solid; flex-shrink: 0; letter-spacing: .2px;
 }
