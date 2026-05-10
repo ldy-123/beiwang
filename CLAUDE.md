@@ -52,11 +52,11 @@
 - **FAB**：根据 `state.currentTab` 路由到对应的 `openNew*()` 函数。
 - **通知**：待办到期时间通过 `setTimeout` 触发 Web Notification API（最长 24 小时）。每次 `save()` 调用时重建所有定时器。
 - **导出/导入**：三个模块全量打包为一个 JSON（`{version, exportedAt, memos, notes, habits}`）。移动端走 Web Share API，桌面端下载兜底。文件导入和剪贴板导入均兼容旧格式（纯备忘数组）和新格式（全量备份）。
-- **Service Worker**：Cache-first 策略。资源变更时需在 `sw.js` 中递增 `CACHE` 版本号。
+- **Service Worker**：network-first 策略，在线始终拉取最新版本，离线降级用缓存兜底。资源变更时需在 `sw.js` 中递增 `CACHE` 版本号。
 
 ## 标签栏行为
 
 - 备忘和小记各有独立标签栏，通过 `renderTagsBar()` 和 `renderNoteTagsBar()` 渲染
 - 两者共用 `#tagsBar` DOM 元素
 - `renderAll()` 根据 `currentTab` 控制标签栏显隐
-- 打卡和归档页面隐藏标签栏，同时设置 `--tags-bar-h` CSS 变量为 `0px` 使内容区上移
+- 打卡页面设置 `--tags-bar-h` 为 `12px` 留出顶部间距，归档页面为 `60px`（归档子标签栏高度），备忘/小记为 `62px`（标签栏高度）
