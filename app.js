@@ -422,7 +422,7 @@ function renderAll() {
 
   document.getElementById('tagsBar').style.display = (inArchive || isHabits) ? 'none' : '';
   document.documentElement.style.setProperty('--tags-bar-h',
-    inArchive ? '42px' : isHabits ? '0px' : '44px');
+    inArchive ? '60px' : isHabits ? '12px' : '62px');
   document.getElementById('archiveSubtabs').style.display = inArchive ? 'flex' : 'none';
   document.getElementById('fab').style.display = inArchive ? 'none' : '';
 
@@ -1430,7 +1430,7 @@ function renderNoteTagsBar() {
     return;
   }
   bar.style.display = '';
-  document.documentElement.style.setProperty('--tags-bar-h', '44px');
+  document.documentElement.style.setProperty('--tags-bar-h', '62px');
   bar.innerHTML = `
     <button class="tag-chip ${noteState.activeTag === 'all' ? 'active' : ''}" data-note-tag="all">全部</button>
     ${tags.map(t => `

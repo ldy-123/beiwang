@@ -110,7 +110,7 @@ html, body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
-  display: flex; gap: 0; padding: 0 10px;
+  display: flex; gap: 0; padding: 10px 10px 8px;
   overflow-x: auto; scrollbar-width: none;
 }
 .tags-bar::-webkit-scrollbar { display: none; }
@@ -792,7 +792,7 @@ html, body {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
-  display: flex; gap: 0; padding: 0 14px;
+  display: flex; gap: 0; padding: 10px 14px 8px;
 }
 .archive-subtab {
   flex: none; border: none; cursor: pointer;
