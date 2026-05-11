@@ -322,7 +322,7 @@ function _cardHTML(m) {
   const preview = todos.slice(0, 2);
   const inArchive = state.currentTab === 'archive';
   const prio = PRIO_MAP[m.priority] || PRIO_MAP['none'];
-  const prioBadge = `<span class="prio-badge" style="color:${prio.color};background:${prio.color}11;border-color:${prio.color}44">${prio.label}</span>`;
+  const prioBadge = `<span class="prio-dot" style="background:${prio.color}" title="${prio.label}"></span>`;
   return `
   <div class="swipe-item" data-id="${m.id}">
     <div class="swipe-actions">
@@ -358,7 +358,6 @@ function _cardHTML(m) {
             `).join('')}
           </div>
           <div style="display:flex;align-items:center;gap:8px">
-            ${todos.length ? `<span class="card-progress">${done}/${todos.length}</span>` : ''}
             <span class="memo-date">${fmtDate(m.updatedAt)}</span>
           </div>
         </div>
@@ -421,7 +420,7 @@ function renderAll() {
 
   document.getElementById('tagsBar').style.display = (inArchive || isHabits) ? 'none' : '';
   document.documentElement.style.setProperty('--tags-bar-h',
-    inArchive ? '60px' : isHabits ? '12px' : '62px');
+    inArchive ? '62px' : isHabits ? '12px' : '64px');
   document.getElementById('archiveSubtabs').style.display = inArchive ? 'flex' : 'none';
   document.getElementById('fab').style.display = inArchive ? 'none' : '';
 
@@ -1412,7 +1411,7 @@ function renderNoteTagsBar() {
     return;
   }
   bar.style.display = '';
-  document.documentElement.style.setProperty('--tags-bar-h', '62px');
+  document.documentElement.style.setProperty('--tags-bar-h', '64px');
   bar.innerHTML = `
     <button class="tag-chip ${noteState.activeTag === 'all' ? 'active' : ''}" data-note-tag="all">全部</button>
     ${tags.map(t => `
