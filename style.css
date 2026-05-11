@@ -340,7 +340,7 @@ html, body {
 .input-content::placeholder { color: var(--text-3); }
 
 /* ─── Todo list (modal) ─── */
-.todo-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; position: relative; }
+.todo-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; position: relative; max-height: 240px; overflow-y: auto; }
 .todo-item {
   display: flex; align-items: center; gap: 6px;
   padding-left: calc(var(--indent, 0) * 22px);
