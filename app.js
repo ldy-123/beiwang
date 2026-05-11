@@ -332,7 +332,6 @@ function _cardHTML(m) {
       <button class="sa-del" data-id="${m.id}">删除</button>
     </div>
     <div class="memo-card" data-id="${m.id}">
-      <div class="color-bar" style="background:${m.color}"></div>
       <div class="memo-card-content">
         <div style="display:flex;align-items:center;gap:8px">
           <h3 style="flex:1;margin-bottom:0">${escHtml(m.title || '无标题')}</h3>
@@ -800,7 +799,6 @@ function deleteMemoById(id) {
 let editTags = [];
 let editAvailableTags = [];
 let editTodos = [];
-let editColor = COLORS[0];
 let editDesc = '';
 let editPriority = 'none';
 
@@ -812,8 +810,7 @@ function openNew() {
   editTodos = [];
   editDesc = '';
   editPriority = 'none';
-  editColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-  showModal({ id: null, title: '', description: '', todos: [], tags: [], color: editColor, priority: 'none' });
+  showModal({ id: null, title: '', description: '', todos: [], tags: [], color: '#F2F2F2', priority: 'none' });
 }
 
 function openEdit(id) {
@@ -825,7 +822,6 @@ function openEdit(id) {
   editAvailableTags = [...m.tags];
   editTodos = (m.todos || []).map(t => ({ ...t }));
   editDesc = m.description || '';
-  editColor = m.color;
   editPriority = m.priority || 'none';
   showModal(m);
 }
@@ -838,7 +834,6 @@ function showModal(m) {
   document.getElementById('btnDelete').style.display = m.id ? 'block' : 'none';
   renderTodoList();
   renderTagSelector();
-  renderColorPicker();
   renderPrioritySelector();
   document.getElementById('overlay').classList.add('open');
   setTimeout(() => document.getElementById('inputTitle').focus(), 350);
@@ -1187,19 +1182,6 @@ function renderTagSelector() {
   });
 }
 
-function renderColorPicker() {
-  const el = document.getElementById('colorPicker');
-  el.innerHTML = COLORS.map(c => `
-    <div class="color-dot ${c === editColor ? 'selected' : ''}" data-color="${c}" style="background:${c}"></div>
-  `).join('');
-  el.querySelectorAll('.color-dot').forEach(dot => {
-    dot.addEventListener('click', () => {
-      editColor = dot.dataset.color;
-      renderColorPicker();
-    });
-  });
-}
-
 function renderPrioritySelector() {
   const el = document.getElementById('prioritySelector');
   el.innerHTML = PRIORITIES.map(p => `
@@ -1239,10 +1221,10 @@ function saveMemo() {
   if (state.editingId) {
     const idx = state.memos.findIndex(m => m.id === state.editingId);
     if (idx !== -1) {
-      state.memos[idx] = { ...state.memos[idx], title, description, todos, tags: editTags, color: editColor, priority: editPriority, updatedAt: Date.now() };
+      state.memos[idx] = { ...state.memos[idx], title, description, todos, tags: editTags, color: state.memos[idx].color, priority: editPriority, updatedAt: Date.now() };
     }
   } else {
-    state.memos.push({ id: uid(), title, description, todos, tags: editTags, color: editColor, priority: editPriority, createdAt: Date.now(), updatedAt: Date.now() });
+    state.memos.push({ id: uid(), title, description, todos, tags: editTags, color: '#F2F2F2', priority: editPriority, createdAt: Date.now(), updatedAt: Date.now() });
   }
 
   save();
