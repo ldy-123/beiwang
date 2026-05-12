@@ -6,18 +6,34 @@
   <meta name="theme-color" content="#f5f5f5">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="备忘录">
+  <meta name="apple-mobile-web-app-title" content="随手记">
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-192.png">
   <link rel="stylesheet" href="./style.css">
-  <title>备忘录</title>
+  <title>随手记</title>
 </head>
 <body>
 
 <!-- Header -->
 <header class="header">
   <div class="header-inner">
-    <h1>备忘录</h1>
+    <h1>随手记</h1>
+    <div style="position:relative">
+      <button class="icon-btn" id="btnUser" aria-label="账户" style="position:relative">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M20 21a8 8 0 10-16 0"/>
+        </svg>
+        <span class="user-dot" id="userDot" style="display:none"></span>
+      </button>
+      <div class="user-menu" id="userMenu">
+        <div class="user-menu-email" id="userMenuEmail"></div>
+        <div class="menu-divider"></div>
+        <button class="menu-action" id="btnChangePw">修改密码</button>
+        <div class="menu-divider"></div>
+        <button class="menu-action" id="btnSignOut">退出登录</button>
+      </div>
+    </div>
     <button class="icon-btn" id="btnSearch" aria-label="搜索">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
         <circle cx="11" cy="11" r="7"/>
@@ -31,7 +47,7 @@
     </button>
   </div>
   <div class="search-bar" id="searchBar">
-    <input type="search" id="searchInput" placeholder="搜索备忘录…" autocomplete="off">
+    <input type="search" id="searchInput" placeholder="搜索随手记…" autocomplete="off">
   </div>
   <div class="menu-bar" id="menuBar">
     <button class="menu-action" id="btnExport">
@@ -39,7 +55,7 @@
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
       </svg>
-      导出备忘录
+      导出随手记
     </button>
     <div class="menu-divider"></div>
     <button class="menu-action" id="btnImportTrigger">
@@ -47,7 +63,7 @@
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
         <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
-      导入备忘录
+      导入随手记
     </button>
     <div class="menu-divider"></div>
     <button class="menu-action" id="btnClipboardImport">
@@ -100,7 +116,7 @@
 
     <div>
       <div class="field-label">标题</div>
-      <input class="input-title" id="inputTitle" type="text" placeholder="备忘录标题…" maxlength="100">
+      <input class="input-title" id="inputTitle" type="text" placeholder="随手记标题…" maxlength="100">
     </div>
 
     <div>
@@ -142,61 +158,69 @@
 
 <!-- Note Modal -->
 <div class="overlay" id="noteOverlay">
-  <div class="modal">
+  <div class="modal note-full">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <h2 id="noteModalTitle">新建小记</h2>
-      <button class="icon-btn" id="btnCloseNoteModal" style="color:var(--text-secondary)">
+      <button class="icon-btn" id="btnCloseNoteModal" style="color:var(--text-secondary);margin-left:auto">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </div>
-    <div>
-      <input class="input-title input-title--tight" id="noteInputTitle" type="text" placeholder="小记标题…" maxlength="100">
-    </div>
-    <div>
-      <div class="richtext-toolbar" id="richtextToolbar">
-        <button class="rt-btn" data-cmd="bold" type="button" aria-label="加粗">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
-        </button>
-        <button class="rt-btn" data-cmd="underline" type="button" aria-label="下划线">
-          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
-        </button>
-        <div class="rt-color-wrap" id="rtColorWrap">
-          <button class="rt-btn" id="btnRtColor" type="button" aria-label="文字颜色">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          </button>
-          <div class="rt-color-dd" id="rtColorDD">
-            <span class="rt-color-dot" style="background:#ef4444" data-color="#ef4444"></span>
-            <span class="rt-color-dot" style="background:#f59e0b" data-color="#f59e0b"></span>
-            <span class="rt-color-dot" style="background:#10b981" data-color="#10b981"></span>
-            <span class="rt-color-dot" style="background:#3b82f6" data-color="#3b82f6"></span>
-            <span class="rt-color-dot" style="background:#8b5cf6" data-color="#8b5cf6"></span>
-            <span class="rt-color-dot" style="background:#ec4899" data-color="#ec4899"></span>
-            <span class="rt-color-dot" style="background:#78716c" data-color="#78716c"></span>
-            <span class="rt-color-dot" style="background:#1c1d2e" data-color="#1c1d2e"></span>
-          </div>
-        </div>
-        <span class="rt-sep"></span>
-        <button class="rt-btn" id="btnRtImage" type="button" aria-label="插入图片">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        </button>
-        <input type="file" id="rtImageInput" accept="image/*" style="display:none">
-      </div>
+
+    <!-- Unified editor area -->
+    <div class="note-editor-unified">
+      <input class="note-title-input" id="noteInputTitle" type="text" placeholder="标题" maxlength="100">
+      <div class="note-time-sep" id="noteTimeSep"></div>
       <div class="richtext-editor" id="richtextEditor" contenteditable="true" placeholder="记录你想记录的内容…"></div>
     </div>
-    <div>
-      <div class="field-label">标签</div>
+
+    <!-- Bottom toolbar -->
+    <div class="note-toolbar" id="noteToolbar">
+      <button class="rt-btn" data-cmd="bold" type="button" aria-label="加粗">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.6 10.79c.97-.67 1.65-1.77 1.65-2.79 0-2.26-1.75-4-4-4H7v14h7.04c2.09 0 3.71-1.7 3.71-3.79 0-1.52-.86-2.82-2.15-3.42zM10 6.5h3c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-3v-3zm3.5 9H10v-3h3.5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5z"/></svg>
+      </button>
+      <button class="rt-btn" data-cmd="underline" type="button" aria-label="下划线">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c3.31 0 6-2.69 6-6V3h-2.5v8c0 1.93-1.57 3.5-3.5 3.5S8.5 12.93 8.5 11V3H6v8c0 3.31 2.69 6 6 6zm-7 2v2h14v-2H5z"/></svg>
+      </button>
+      <div class="rt-color-wrap" id="rtColorWrap">
+        <button class="rt-btn" id="btnRtColor" type="button" aria-label="文字颜色">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </button>
+        <div class="rt-color-dd" id="rtColorDD">
+          <span class="rt-color-dot" style="background:#ef4444" data-color="#ef4444"></span>
+          <span class="rt-color-dot" style="background:#f59e0b" data-color="#f59e0b"></span>
+          <span class="rt-color-dot" style="background:#10b981" data-color="#10b981"></span>
+          <span class="rt-color-dot" style="background:#3b82f6" data-color="#3b82f6"></span>
+          <span class="rt-color-dot" style="background:#8b5cf6" data-color="#8b5cf6"></span>
+          <span class="rt-color-dot" style="background:#ec4899" data-color="#ec4899"></span>
+          <span class="rt-color-dot" style="background:#78716c" data-color="#78716c"></span>
+          <span class="rt-color-dot" style="background:#1c1d2e" data-color="#1c1d2e"></span>
+        </div>
+      </div>
+      <span class="rt-sep"></span>
+      <button class="rt-btn" id="btnRtImage" type="button" aria-label="插入图片">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </button>
+      <input type="file" id="rtImageInput" accept="image/*" style="display:none">
+      <span class="rt-sep"></span>
+      <button class="note-tags-toggle" id="btnNoteTagsToggle">
+        <span id="noteTagsToggleLabel">+ 标签</span>
+      </button>
+    </div>
+
+    <!-- Tags expandable area -->
+    <div class="note-tags-body" id="noteTagsBody" style="display:none">
       <div class="tag-selector" id="noteTagSelector"></div>
       <div class="tag-input-row" style="margin-top:10px">
         <input type="text" id="noteTagInput" placeholder="新标签名…" maxlength="20">
         <button id="btnNoteAddTag">添加</button>
       </div>
+      <button class="btn-delete" id="btnDeleteNote" style="display:none;margin-top:10px;width:100%">删除</button>
     </div>
+
     <div class="modal-actions">
-      <button class="btn-delete" id="btnDeleteNote" style="display:none">删除</button>
       <button class="btn-save" id="btnSaveNote">保存</button>
     </div>
   </div>
@@ -242,7 +266,7 @@
 <nav class="bottom-nav">
   <button class="nav-item active" data-tab="memos">
     <svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm3 4h10v2H7V8zm0 4h7v2H7v-2z"/>
+      <path d="M15 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V7l-5-4zm-1 2v4h4l-4-4zM8 12h8v1.5H8V12zm0 3h8v1.5H8V15zm0-6h4v1.5H8V9z"/>
     </svg>
     <span>备忘</span>
   </button>
@@ -266,9 +290,40 @@
   </button>
 </nav>
 
+<!-- Auth Modal -->
+<div class="overlay" id="authOverlay">
+  <div class="modal auth-modal">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 id="authModalTitle">登录</h2>
+      <button class="icon-btn" id="btnCloseAuth" style="color:var(--text-secondary)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div>
+      <div class="field-label">邮箱</div>
+      <input class="input-title" id="authEmail" type="email" placeholder="your@email.com">
+    </div>
+    <div>
+      <div class="field-label">密码</div>
+      <input class="input-title" id="authPassword" type="password" placeholder="至少6位密码">
+    </div>
+    <div class="auth-error" id="authError" style="display:none"></div>
+    <div class="modal-actions">
+      <button class="btn-delete" id="btnAuthSwitch" style="display:block;flex:1">去注册</button>
+      <button class="btn-save" id="btnAuthSubmit">登录</button>
+    </div>
+    <button class="auth-link" id="btnForgotPw" style="margin-top:8px">忘记密码</button>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>

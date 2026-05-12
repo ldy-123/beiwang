@@ -9,6 +9,70 @@ const PRIORITIES = [
 ];
 const PRIO_MAP = Object.fromEntries(PRIORITIES.map(p => [p.key, p]));
 
+// ─── Supabase ─────────────────────────────────────────
+const SUPABASE_URL = 'https://feaxywednucnlwbjmqau.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_WvAjzjqPoxAKLoT1sYXuwg_FE6__DEb';
+let sb = null;
+let sbAuthed = false;
+let sbUser = null;
+
+function initSupabase() {
+  if (typeof supabase === 'undefined') { console.warn('Supabase SDK not loaded'); return; }
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    sb.auth.onAuthStateChange((event, session) => {
+      sbAuthed = !!session;
+      sbUser = session ? session.user : null;
+      updateAuthUI();
+      if (event === 'SIGNED_IN') syncAllFromCloud();
+      if (event === 'SIGNED_OUT') sbUser = null;
+    });
+    sb.auth.getSession().then(({ data: { session } }) => {
+      sbAuthed = !!session;
+      sbUser = session ? session.user : null;
+      updateAuthUI();
+      if (session) syncAllFromCloud();
+    });
+  } catch (e) { console.warn('Supabase init error', e); sb = null; }
+}
+
+function updateAuthUI() {
+  const dot = document.getElementById('userDot');
+  if (dot) dot.style.display = sbAuthed ? 'block' : 'none';
+}
+
+async function syncAllFromCloud() {
+  if (!sb || !sbUser) return;
+  try {
+    const [{ data: memos }, { data: notes }, { data: habits }] = await Promise.all([
+      sb.from('memos').select('*').eq('user_id', sbUser.id),
+      sb.from('notes').select('*').eq('user_id', sbUser.id),
+      sb.from('habits').select('*').eq('user_id', sbUser.id),
+    ]);
+    if (memos) { state.memos = memos.map(flatMemo); localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos)); }
+    if (notes) { noteState.notes = notes.map(flatNote); localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes)); }
+    if (habits) { habitState.habits = habits.map(flatHabit); localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits)); }
+    renderAll();
+    scheduleNotifications();
+    showToast('数据已同步');
+  } catch (e) { console.warn('Sync error', e); }
+}
+
+function flatMemo(r) { return { id: r.id, title: r.title, description: r.description, todos: r.todos || [], tags: r.tags || [], color: r.color, priority: r.priority || 'none', archived: r.archived || false, archivedAt: r.archived_at ? new Date(r.archived_at).getTime() : null, createdAt: new Date(r.created_at).getTime(), updatedAt: new Date(r.updated_at).getTime() }; }
+function flatNote(r) { return { id: r.id, title: r.title, content: r.content || '', tags: r.tags || [], pinned: r.pinned || false, pinnedAt: r.pinned_at ? new Date(r.pinned_at).getTime() : null, archived: r.archived || false, archivedAt: r.archived_at ? new Date(r.archived_at).getTime() : null, createdAt: new Date(r.created_at).getTime(), updatedAt: new Date(r.updated_at).getTime() }; }
+function flatHabit(r) { return { id: r.id, title: r.title, emoji: r.emoji, color: r.color, completedDates: r.completed_dates || [], archived: r.archived || false, archivedAt: r.archived_at ? new Date(r.archived_at).getTime() : null, createdAt: new Date(r.created_at).getTime(), updatedAt: new Date(r.updated_at).getTime() }; }
+
+function _sbRow(table, item) {
+  if (table === 'memos') return { id: item.id, user_id: sbUser.id, title: item.title, description: item.description || '', todos: item.todos || [], tags: item.tags || [], color: item.color, priority: item.priority || 'none', archived: item.archived || false, archived_at: item.archivedAt ? new Date(item.archivedAt).toISOString() : null, created_at: new Date(item.createdAt).toISOString(), updated_at: new Date(item.updatedAt).toISOString() };
+  if (table === 'notes') return { id: item.id, user_id: sbUser.id, title: item.title, content: item.content || '', tags: item.tags || [], pinned: item.pinned || false, pinned_at: item.pinnedAt ? new Date(item.pinnedAt).toISOString() : null, archived: item.archived || false, archived_at: item.archivedAt ? new Date(item.archivedAt).toISOString() : null, created_at: new Date(item.createdAt).toISOString(), updated_at: new Date(item.updatedAt).toISOString() };
+  return { id: item.id, user_id: sbUser.id, title: item.title, emoji: item.emoji, color: item.color, completed_dates: item.completedDates || [], archived: item.archived || false, archived_at: item.archivedAt ? new Date(item.archivedAt).toISOString() : null, created_at: new Date(item.createdAt).toISOString(), updated_at: new Date(item.updatedAt).toISOString() };
+}
+
+function _sbDelete(table, id) {
+  if (!sb || !sbUser) return;
+  sb.from(table).delete().eq('id', id).then(({ error }) => { if (error) console.warn('Delete error', error); });
+}
+
 let state = {
   memos: [],
   activeTag: 'all',
@@ -25,15 +89,36 @@ function load() {
 }
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos));
+  if (sb && sbAuthed) _syncTableToCloud('memos');
+  const hasDueTodo = state.memos.some(m => (m.todos || []).some(t => t.dueTime && !t.done));
+  if (hasDueTodo && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') scheduleNotifications();
+    });
+  }
   scheduleNotifications();
 }
 
 // ─── Notifications ─────────────────────────────────────
 let notifTimers = [];
+let _notifFired = {}; // dedupe key
 
 function clearNotifTimers() {
   notifTimers.forEach(t => clearTimeout(t));
   notifTimers = [];
+}
+
+function _fireNotification(title, body, tag) {
+  if (_notifFired[tag]) return;
+  _notifFired[tag] = true;
+  try {
+    new Notification(title, {
+      body: body,
+      icon: './icon-192.png',
+      tag: tag,
+      vibrate: [200, 100, 200],
+    });
+  } catch (_) {}
 }
 
 function scheduleNotifications() {
@@ -41,7 +126,8 @@ function scheduleNotifications() {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
   const now = Date.now();
-  const MAX_DELAY = 24 * 60 * 60 * 1000; // cap at 24h for reliability
+  const MAX_DELAY = 24 * 60 * 60 * 1000;
+  const MISSED_WINDOW = 24 * 60 * 60 * 1000; // fire missed ones within 24h
 
   state.memos.forEach(m => {
     if (m.archived) return;
@@ -49,25 +135,26 @@ function scheduleNotifications() {
       if (!todo.dueTime || todo.done) return;
       const dueMs = new Date(todo.dueTime).getTime();
       const delay = dueMs - now;
-      if (delay <= 0 || delay > MAX_DELAY) return;
 
-      const timer = setTimeout(() => {
-        const title = m.title || '备忘录提醒';
-        new Notification(title, {
-          body: todo.text || '有待办事项到期',
-          icon: './icon-192.png',
-          tag: `todo-${todo.id}`,
-          vibrate: [200, 100, 200],
-        });
-      }, delay);
-      notifTimers.push(timer);
+      if (delay > 0 && delay <= MAX_DELAY) {
+        // Future: schedule timer
+        const timer = setTimeout(() => {
+          _fireNotification(m.title || '随手记提醒', todo.text || '有待办事项到期', `todo-${todo.id}`);
+        }, delay);
+        notifTimers.push(timer);
+      } else if (delay <= 0 && delay > -MISSED_WINDOW) {
+        // Missed while app was closed/backgrounded — fire now
+        _fireNotification(m.title || '随手记提醒', todo.text || '有待办事项到期', `todo-${todo.id}`);
+      }
     });
   });
 }
 
 function requestNotifPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission().then(() => scheduleNotifications());
+    Notification.requestPermission().then(perm => {
+      if (perm === 'granted') scheduleNotifications();
+    });
   } else if ('Notification' in window && Notification.permission === 'granted') {
     scheduleNotifications();
   }
@@ -88,6 +175,7 @@ function loadNotes() {
 }
 function saveNotes() {
   localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes));
+  if (sb && sbAuthed) _syncTableToCloud('notes');
 }
 
 // ─── Habits Storage ─────────────────────────────────────
@@ -103,6 +191,20 @@ function loadHabits() {
 }
 function saveHabits() {
   localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits));
+  if (sb && sbAuthed) _syncTableToCloud('habits');
+}
+
+async function _syncTableToCloud(table) {
+  if (!sb || !sbUser) return;
+  let rows, items;
+  if (table === 'memos') items = state.memos;
+  else if (table === 'notes') items = noteState.notes;
+  else items = habitState.habits;
+  rows = items.map(item => _sbRow(table, item));
+  try {
+    const { error } = await sb.from(table).upsert(rows, { onConflict: 'id' });
+    if (error) console.warn('Cloud sync error', table, error);
+  } catch (e) { console.warn('Cloud sync failed', table, e); }
 }
 
 // Week helpers
@@ -788,6 +890,7 @@ function restoreMemo(id) {
   if (m) { m.archived = false; m.archivedAt = null; save(); renderAll(); showToast('已恢复'); }
 }
 function deleteMemoById(id) {
+  _sbDelete('memos', id);
   state.memos = state.memos.filter(m => m.id !== id);
   save(); renderAll(); showToast('已删除');
 }
@@ -1233,6 +1336,7 @@ function saveMemo() {
 function deleteMemo() {
   if (!state.editingId) return;
   if (!confirm('确定删除这条备忘录吗？')) return;
+  _sbDelete('memos', state.editingId);
   state.memos = state.memos.filter(m => m.id !== state.editingId);
   save();
   closeModal();
@@ -1550,6 +1654,7 @@ function restoreNote(id) {
   if (n) { n.archived = false; n.archivedAt = null; saveNotes(); renderAll(); showToast('已恢复'); }
 }
 function deleteNoteById(id) {
+  _sbDelete('notes', id);
   noteState.notes = noteState.notes.filter(n => n.id !== id);
   saveNotes(); renderAll(); showToast('已删除');
 }
@@ -1646,12 +1751,15 @@ function openEditNote(id) {
 }
 
 function showNoteModal(n) {
-  document.getElementById('noteModalTitle').textContent = n.id ? '编辑小记' : '新建小记';
   document.getElementById('noteInputTitle').value = n.title || '';
   document.getElementById('richtextEditor').innerHTML = n.content || '';
   document.getElementById('noteTagInput').value = '';
   document.getElementById('btnDeleteNote').style.display = n.id ? 'block' : 'none';
+  document.getElementById('noteTimeSep').textContent = fmtDate(n.updatedAt || Date.now());
   renderNoteTagSelector();
+  const hasTags = (n.tags && n.tags.length);
+  document.getElementById('noteTagsBody').style.display = hasTags ? '' : 'none';
+  document.getElementById('noteTagsToggleLabel').textContent = hasTags ? '− 标签' : '+ 标签';
   document.getElementById('noteOverlay').classList.add('open');
   setTimeout(() => {
     document.getElementById('noteInputTitle').focus();
@@ -1687,6 +1795,7 @@ function saveNote() {
 function deleteNote() {
   if (!noteState.editingId) return;
   if (!confirm('确定删除这条小记吗？')) return;
+  _sbDelete('notes', noteState.editingId);
   noteState.notes = noteState.notes.filter(n => n.id !== noteState.editingId);
   saveNotes();
   closeNoteModal();
@@ -1847,6 +1956,7 @@ function restoreHabit(id) {
   if (h) { h.archived = false; h.archivedAt = null; saveHabits(); renderAll(); showToast('已恢复'); }
 }
 function deleteHabitById(id) {
+  _sbDelete('habits', id);
   habitState.habits = habitState.habits.filter(h => h.id !== id);
   saveHabits(); renderAll(); showToast('已删除');
 }
@@ -1979,6 +2089,7 @@ function saveHabit() {
 function deleteHabit() {
   if (!habitState.editingId) return;
   if (!confirm('确定删除这个习惯吗？')) return;
+  _sbDelete('habits', habitState.editingId);
   habitState.habits = habitState.habits.filter(h => h.id !== habitState.editingId);
   saveHabits();
   closeHabitModal();
@@ -2103,6 +2214,7 @@ function initRichtextToolbar() {
 function init() {
   load();
   loadTagOrder();
+  initSupabase();
 
   document.getElementById('btnSearch').addEventListener('click', toggleSearch);
   document.getElementById('btnMenu').addEventListener('click', toggleMenu);
@@ -2164,6 +2276,114 @@ function init() {
 
   renderAll();
   requestNotifPermission();
+
+  // Reschedule notifications when app returns to foreground
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      _notifFired = {};
+      scheduleNotifications();
+    }
+  });
+
+  // Auth modal
+  let authMode = 'signIn';
+  function _showAuthModal(mode) {
+    authMode = mode;
+    const isPw = mode === 'changePassword';
+    document.getElementById('authModalTitle').textContent = isPw ? '修改密码' : mode === 'signIn' ? '登录' : mode === 'signUp' ? '注册' : '找回密码';
+    document.getElementById('btnAuthSubmit').textContent = isPw ? '修改' : mode === 'forgotPassword' ? '发送重置邮件' : mode === 'signIn' ? '登录' : '注册';
+    document.getElementById('btnAuthSwitch').style.display = (mode === 'forgotPassword' || isPw) ? 'none' : 'block';
+    document.getElementById('btnAuthSwitch').textContent = mode === 'signIn' ? '去注册' : '去登录';
+    document.getElementById('btnForgotPw').style.display = mode === 'signIn' ? 'block' : 'none';
+    document.getElementById('authEmail').parentElement.style.display = isPw ? 'none' : '';
+    document.getElementById('authPassword').parentElement.style.display = mode === 'forgotPassword' ? 'none' : '';
+    if (isPw) document.getElementById('authPassword').placeholder = '新密码（至少6位）';
+    else document.getElementById('authPassword').placeholder = '至少6位密码';
+    document.getElementById('authError').style.display = 'none';
+    document.getElementById('authEmail').value = '';
+    document.getElementById('authPassword').value = '';
+    document.getElementById('authOverlay').classList.add('open');
+  }
+  document.getElementById('btnUser').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (sbAuthed) {
+      document.getElementById('userMenuEmail').textContent = sbUser ? sbUser.email : '';
+      document.getElementById('userMenu').classList.toggle('open');
+      return;
+    }
+    _showAuthModal('signIn');
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#btnUser') && !e.target.closest('#userMenu')) {
+      document.getElementById('userMenu').classList.remove('open');
+    }
+  });
+  document.getElementById('btnSignOut').addEventListener('click', () => {
+    document.getElementById('userMenu').classList.remove('open');
+    sb.auth.signOut(); showToast('已退出');
+  });
+  document.getElementById('btnChangePw').addEventListener('click', () => {
+    document.getElementById('userMenu').classList.remove('open');
+    _showAuthModal('changePassword');
+  });
+  document.getElementById('btnCloseAuth').addEventListener('click', () => {
+    document.getElementById('authOverlay').classList.remove('open');
+  });
+  document.getElementById('authOverlay').addEventListener('click', e => {
+    if (e.target === document.getElementById('authOverlay')) document.getElementById('authOverlay').classList.remove('open');
+  });
+  document.getElementById('btnAuthSwitch').addEventListener('click', () => {
+    _showAuthModal(authMode === 'signIn' ? 'signUp' : 'signIn');
+  });
+  document.getElementById('btnForgotPw').addEventListener('click', () => {
+    _showAuthModal('forgotPassword');
+  });
+  document.getElementById('btnAuthSubmit').addEventListener('click', async () => {
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const errEl = document.getElementById('authError');
+
+    if (authMode === 'changePassword') {
+      if (!password) { errEl.textContent = '请填写新密码'; errEl.style.display = 'block'; return; }
+      if (password.length < 6) { errEl.textContent = '密码至少6位'; errEl.style.display = 'block'; return; }
+      errEl.style.display = 'none';
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; }
+      else { showToast('密码已修改'); document.getElementById('authOverlay').classList.remove('open'); }
+      return;
+    }
+
+    if (!email) { errEl.textContent = '请填写邮箱'; errEl.style.display = 'block'; return; }
+    errEl.style.display = 'none';
+
+    if (authMode === 'forgotPassword') {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; }
+      else { showToast('重置邮件已发送，请查收'); document.getElementById('authOverlay').classList.remove('open'); }
+      return;
+    }
+
+    if (!password) { errEl.textContent = '请填写密码'; errEl.style.display = 'block'; return; }
+    if (password.length < 6) { errEl.textContent = '密码至少6位'; errEl.style.display = 'block'; return; }
+    let result;
+    if (authMode === 'signIn') {
+      result = await sb.auth.signInWithPassword({ email, password });
+    } else {
+      result = await sb.auth.signUp({ email, password });
+    }
+    if (result.error) {
+      errEl.textContent = result.error.message; errEl.style.display = 'block';
+    } else if (authMode === 'signUp') {
+      showToast('注册成功，请查收确认邮件');
+      document.getElementById('authOverlay').classList.remove('open');
+    } else {
+      document.getElementById('authOverlay').classList.remove('open');
+      showToast('已登录');
+    }
+  });
+  document.getElementById('authPassword').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('btnAuthSubmit').click();
+  });
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(reg => {
@@ -2240,7 +2460,34 @@ function initNotes() {
   document.getElementById('noteTagInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); addNoteTag(); }
   });
+  document.getElementById('btnNoteTagsToggle').addEventListener('click', () => {
+    const body = document.getElementById('noteTagsBody');
+    const label = document.getElementById('noteTagsToggleLabel');
+    if (body.style.display === 'none') {
+      body.style.display = '';
+      label.textContent = '− 标签';
+    } else {
+      body.style.display = 'none';
+      label.textContent = '+ 标签';
+    }
+  });
   initRichtextToolbar();
+
+  // Keep toolbar above keyboard on mobile
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+      const overlay = document.getElementById('noteOverlay');
+      if (!overlay.classList.contains('open')) return;
+      const toolbar = document.getElementById('noteToolbar');
+      const keyboardH = window.innerHeight - window.visualViewport.height;
+      if (keyboardH > 60) {
+        const safeBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)')) || 0;
+        toolbar.style.paddingBottom = (keyboardH - safeBottom) + 'px';
+      } else {
+        toolbar.style.paddingBottom = '';
+      }
+    });
+  }
 }
 
 function initHabits() {

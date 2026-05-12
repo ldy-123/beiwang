@@ -1,8 +1,8 @@
 {
   "id": "/beiwang/",
-  "name": "备忘录",
-  "short_name": "备忘录",
-  "description": "简洁好用的备忘录 app",
+  "name": "随手记",
+  "short_name": "随手记",
+  "description": "简洁好用的随手记 app",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f4f5fa",
