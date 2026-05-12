@@ -187,6 +187,7 @@ html, body {
 .memo-card {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
   border-radius: var(--radius);
   padding: 14px 14px 12px;
   position: relative; overflow: hidden; z-index: 1;
@@ -197,12 +198,11 @@ html, body {
   box-shadow: var(--shadow-sm);
 }
 .memo-card:active {
-  border-color: var(--border-hi);
   box-shadow: var(--shadow-md);
 }
 
 .memo-card h3 {
-  font-size: 16px; font-weight: 600; margin-bottom: 4px;
+  font-size: 16px; font-weight: 600; margin-bottom: 6px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text);
 }
 .memo-card p {
@@ -224,12 +224,11 @@ html, body {
 .memo-card-footer {
   display: flex; align-items: center; justify-content: space-between; margin-top: 8px;
 }
-.memo-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.memo-tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .memo-tag {
-  font-size: 11px; padding: 2px 8px; border-radius: 10px;
-  font-weight: 600; border: 1px solid currentColor; opacity: .85;
+  font-size: 11px; font-weight: 600; opacity: .75;
 }
-.memo-date { font-size: 11px; color: var(--text-3); font-weight: 500; }
+.memo-date { font-size: 11px; color: var(--text-3); font-weight: 500; flex-shrink: 0; }
 
 /* Empty state */
 .empty { text-align: center; padding: 80px 20px 20px; color: var(--text-3); }
@@ -899,7 +898,4 @@ html, body {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
 }
 
-/* ─── Priority dot (on cards) ─── */
-.prio-dot {
-  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
-}
+/* ─── Priority dot (on priority selector) ─── */
