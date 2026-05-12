@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'memos_v1';
-const COLORS = ['#FF6B6B', '#FF9F43', '#1DD1A1', '#54A0FF', '#A29BFE', '#FD79A8'];
+const COLORS = ['#15803d', '#0f766e', '#57534e', '#78716c', '#44403c', '#166534'];
 
 const PRIORITIES = [
   { key: 'urgent-important',  label: '重要且紧急',       color: '#ef4444', order: 0 },
@@ -629,7 +629,7 @@ function _startTagDrag(startX, startY, chip) {
   ghost.removeAttribute('data-tag');
   ghost.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;
     pointer-events:none;z-index:999;opacity:.9;transform:scale(1.08) translateY(-3px);
-    transition:none;box-shadow:0 4px 16px rgba(245,158,11,0.3);`;
+    transition:none;box-shadow:0 4px 16px rgba(21,128,61,0.2);`;
   document.body.appendChild(ghost);
   chip.classList.add('tag-dragging');
   activeTagDrag = { tag, chip, ghost, startX, offsetX: startX - rect.left, dragging: false };
@@ -1380,7 +1380,7 @@ function spawnBurst(btn) {
   const r = btn.getBoundingClientRect();
   const cx = r.left + r.width / 2;
   const cy = r.top + r.height / 2;
-  const colors = ['#f59e0b', '#6366f1', '#1DD1A1', '#FF6B6B', '#FF9F43', '#FD79A8'];
+  const colors = ['#15803d', '#0f766e', '#57534e', '#78716c', '#44403c', '#166534'];
   for (let i = 0; i < 8; i++) {
     const dot = document.createElement('div');
     dot.className = 'todo-burst';
