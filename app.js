@@ -322,6 +322,7 @@ function _cardHTML(m) {
   const preview = todos.slice(0, 2);
   const inArchive = state.currentTab === 'archive';
   const prio = PRIO_MAP[m.priority] || PRIO_MAP['none'];
+  const dateStr = fmtDate(m.updatedAt).split(' ')[0];
   return `
   <div class="swipe-item" data-id="${m.id}">
     <div class="swipe-actions">
@@ -330,8 +331,12 @@ function _cardHTML(m) {
         : `<button class="sa-done"    data-id="${m.id}">完成</button>`}
       <button class="sa-del" data-id="${m.id}">删除</button>
     </div>
-    <div class="memo-card" data-id="${m.id}" style="border-left: 3px solid ${prio.color}">
+    <div class="memo-card" data-id="${m.id}">
       <div class="memo-card-content">
+        <div class="memo-card-header">
+          <span class="memo-prio"><span class="memo-prio-dot" style="background:${prio.color}"></span>${prio.label}</span>
+          <span class="memo-date">${dateStr}</span>
+        </div>
         <h3>${escHtml(m.title || '无标题')}</h3>
         ${m.description ? `<p class="card-desc">${escHtml(m.description)}</p>` : ''}
         ${preview.length ? `
@@ -345,16 +350,15 @@ function _cardHTML(m) {
             ${todos.length > 2 ? `<div class="card-todo-more">还有 ${todos.length - 2} 项…</div>` : ''}
           </div>
         ` : ''}
-        <div class="memo-card-footer">
-          <div class="memo-tags">
-            ${m.tags.map(t => `
-              <span class="memo-tag" style="color:${tagColor(t)}">
-                ${escHtml(t)}
-              </span>
-            `).join('')}
+        ${m.tags.length ? `
+          <div class="memo-card-tags-area">
+            <div class="memo-tags">
+              ${m.tags.map(t => `
+                <span class="memo-tag" style="color:${tagColor(t)}">${escHtml(t)}</span>
+              `).join('')}
+            </div>
           </div>
-          <span class="memo-date">${fmtDate(m.updatedAt)}</span>
-        </div>
+        ` : ''}
       </div>
     </div>
   </div>`;
