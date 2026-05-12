@@ -116,26 +116,25 @@ html, body {
 .tags-bar::-webkit-scrollbar { display: none; }
 .tag-chip {
   flex-shrink: 0; border: none; cursor: pointer;
-  padding: 10px 14px 12px; font-size: 13px; font-weight: 600;
-  background: none; color: var(--text-2);
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-  transition: all .15s; white-space: nowrap; font-family: inherit;
+  padding: 7px 15px; font-size: 13px; font-weight: 600;
+  background: var(--surface-2); color: var(--text-2);
+  border-radius: 20px;
+  margin: 0 2px;
+  transition: all .2s ease; white-space: nowrap; font-family: inherit;
   user-select: none; -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
 }
 .tag-chip.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
 }
 .tag-chip.tag-dragging { opacity: .25; pointer-events: none; }
 .tag-chip.tag-drop-here {
-  border-left: 2.5px solid var(--primary);
-  padding-left: 11.5px;
+  box-shadow: 0 0 0 2px var(--primary);
 }
 .tag-chip.tag-drop-after {
-  border-right: 2.5px solid var(--primary);
-  padding-right: 11.5px;
+  box-shadow: 0 0 0 2px var(--primary);
 }
 
 /* ─── Content ─── */
@@ -796,14 +795,15 @@ html, body {
 }
 .archive-subtab {
   flex: none; border: none; cursor: pointer;
-  padding: 11px 18px 13px; font-size: 13px; font-weight: 600;
-  background: none; color: var(--text-2);
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
-  transition: all .15s; white-space: nowrap; font-family: inherit;
+  padding: 8px 16px; font-size: 13px; font-weight: 600;
+  background: var(--surface-2); color: var(--text-2);
+  border-radius: 20px;
+  margin: 0 2px;
+  transition: all .2s ease; white-space: nowrap; font-family: inherit;
 }
 .archive-subtab.active {
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ─── Habit card ─── */
