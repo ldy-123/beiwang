@@ -49,26 +49,64 @@ async function syncAllFromCloud() {
       sb.from('notes').select('*').eq('user_id', sbUser.id),
       sb.from('habits').select('*').eq('user_id', sbUser.id),
     ]);
-    const cloudEmpty = (!memos || !memos.length) && (!notes || !notes.length) && (!habits || !habits.length);
-    const localHas = state.memos.length || noteState.notes.length || habitState.habits.length;
 
-    if (cloudEmpty && localHas) {
-      // First login — upload local data to cloud instead of overwriting
-      await Promise.all([
-        _syncTableToCloud('memos'),
-        _syncTableToCloud('notes'),
-        _syncTableToCloud('habits'),
-      ]);
-      showToast('本地数据已上传到云端');
-    } else if (!cloudEmpty) {
-      // Cloud has data — use it as source of truth
-      if (memos.length) { state.memos = memos.map(flatMemo); localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos)); }
-      if (notes.length) { noteState.notes = notes.map(flatNote); localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes)); }
-      if (habits.length) { habitState.habits = habits.map(flatHabit); localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits)); }
-      showToast('数据已同步');
+    // Per-item merge: take whichever version is newer (by updatedAt)
+    if (memos && memos.length) {
+      const localMap = new Map(state.memos.map(m => [m.id, m]));
+      const merged = memos.map(flatMemo);
+      for (const cloudItem of merged) {
+        const local = localMap.get(cloudItem.id);
+        if (local && local.updatedAt > cloudItem.updatedAt) {
+          // Local is newer — keep local, push to cloud
+          Object.assign(cloudItem, local);
+        }
+      }
+      // Add local-only items that don't exist in cloud
+      for (const local of state.memos) {
+        if (!merged.find(c => c.id === local.id)) merged.push(local);
+      }
+      state.memos = merged;
+      save();
     }
+
+    if (notes && notes.length) {
+      const localMap = new Map(noteState.notes.map(n => [n.id, n]));
+      const merged = notes.map(flatNote);
+      for (const cloudItem of merged) {
+        const local = localMap.get(cloudItem.id);
+        if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
+      }
+      for (const local of noteState.notes) {
+        if (!merged.find(c => c.id === local.id)) merged.push(local);
+      }
+      noteState.notes = merged;
+      saveNotes();
+    }
+
+    if (habits && habits.length) {
+      const localMap = new Map(habitState.habits.map(h => [h.id, h]));
+      const merged = habits.map(flatHabit);
+      for (const cloudItem of merged) {
+        const local = localMap.get(cloudItem.id);
+        if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
+      }
+      for (const local of habitState.habits) {
+        if (!merged.find(c => c.id === local.id)) merged.push(local);
+      }
+      habitState.habits = merged;
+      saveHabits();
+    }
+
+    // Push final merged state to cloud
+    await Promise.all([
+      _syncTableToCloud('memos'),
+      _syncTableToCloud('notes'),
+      _syncTableToCloud('habits'),
+    ]);
+
     renderAll();
     scheduleNotifications();
+    showToast('数据已同步');
   } catch (e) { console.warn('Sync error', e); }
 }
 
@@ -97,11 +135,23 @@ let state = {
 };
 
 // ─── Storage ───────────────────────────────────────────
+function _backup(key, data) {
+  try { if (data && data.length) localStorage.setItem(key + '_backup', JSON.stringify(data)); } catch (_) {}
+}
+function _restoreBackup(key) {
+  try { return JSON.parse(localStorage.getItem(key + '_backup')) || []; } catch (_) { return []; }
+}
 function load() {
   try { state.memos = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { state.memos = []; }
+  // Auto-restore from backup if main data is empty
+  if (!state.memos.length) {
+    const backup = _restoreBackup(STORAGE_KEY);
+    if (backup.length) { state.memos = backup; save(); }
+  }
 }
 function save() {
+  _backup(STORAGE_KEY, state.memos);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos));
   if (sb && sbAuthed) _syncTableToCloud('memos');
   const hasDueTodo = state.memos.some(m => (m.todos || []).some(t => t.dueTime && !t.done));
@@ -186,8 +236,13 @@ let expandedNoteIds = new Set();
 function loadNotes() {
   try { noteState.notes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; }
   catch { noteState.notes = []; }
+  if (!noteState.notes.length) {
+    const backup = _restoreBackup(NOTES_KEY);
+    if (backup.length) { noteState.notes = backup; saveNotes(); }
+  }
 }
 function saveNotes() {
+  _backup(NOTES_KEY, noteState.notes);
   localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes));
   if (sb && sbAuthed) _syncTableToCloud('notes');
 }
@@ -202,8 +257,13 @@ let habitState = {
 function loadHabits() {
   try { habitState.habits = JSON.parse(localStorage.getItem(HABITS_KEY)) || []; }
   catch { habitState.habits = []; }
+  if (!habitState.habits.length) {
+    const backup = _restoreBackup(HABITS_KEY);
+    if (backup.length) { habitState.habits = backup; saveHabits(); }
+  }
 }
 function saveHabits() {
+  _backup(HABITS_KEY, habitState.habits);
   localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits));
   if (sb && sbAuthed) _syncTableToCloud('habits');
 }
