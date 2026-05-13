@@ -56,7 +56,7 @@
 
 ## Supabase 云同步
 
-- 应用加载 Supabase JS SDK CDN，初始化客户端（URL + anon key）
+- 应用加载 Supabase JS SDK CDN。CDN 脚本以 `async` 加载并置于 `app.js` 之后，避免 CDN 不可用时阻塞页面渲染和 PWA 启动
 - 未登录时与旧版一致——纯 localhostStorage 运行
 - 登录后：`syncAllFromCloud()` 拉取云端数据，与本地按 `updatedAt` 逐条合并（谁新留谁），合并结果回推云端
 - 保存时：`save()` / `saveNotes()` / `saveHabits()` 先写 `_backup` 备份 → 写 localStorage → 推 Supabase（批量 upsert）。备份始终与主数据同步（包括空数组），防止删除全部条目后旧备份残留导致数据复活

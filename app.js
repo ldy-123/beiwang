@@ -2288,7 +2288,6 @@ function initRichtextToolbar() {
 function init() {
   load();
   loadTagOrder();
-  initSupabase();
 
   document.getElementById('btnSearch').addEventListener('click', toggleSearch);
   document.getElementById('btnMenu').addEventListener('click', toggleMenu);
