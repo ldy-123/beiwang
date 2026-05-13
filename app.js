@@ -19,13 +19,20 @@ let sbUser = null;
 function initSupabase() {
   if (typeof supabase === 'undefined') { console.warn('Supabase SDK not loaded'); return; }
   try {
-    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      }
+    });
     sb.auth.onAuthStateChange((event, session) => {
       sbAuthed = !!session;
       sbUser = session ? session.user : null;
       updateAuthUI();
       if (event === 'SIGNED_IN') syncAllFromCloud();
-      if (event === 'SIGNED_OUT') sbUser = null;
+      if (event === 'SIGNED_OUT') { sbUser = null; showToast('登录已过期，请重新登录'); }
+      if (event === 'TOKEN_REFRESHED') { /* session stays alive */ }
     });
     sb.auth.getSession().then(({ data: { session } }) => {
       sbAuthed = !!session;

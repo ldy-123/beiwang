@@ -4,6 +4,7 @@
   "short_name": "随手记",
   "description": "简洁好用的随手记 app",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f5fa",
   "theme_color": "#f4f5fa",
