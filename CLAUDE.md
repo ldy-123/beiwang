@@ -58,8 +58,9 @@
 
 - 应用加载 Supabase JS SDK CDN，初始化客户端（URL + anon key）
 - 未登录时与旧版一致——纯 localhostStorage 运行
-- 登录后：`syncAllFromCloud()` 从 Supabase 拉取全量数据，覆盖本地 state 和 localStorage
-- 保存时：`save()` / `saveNotes()` / `saveHabits()` 同时写 localStorage 和 Supabase（批量 upsert）
+- 登录后：`syncAllFromCloud()` 拉取云端数据，与本地按 `updatedAt` 逐条合并（谁新留谁），合并结果回推云端
+- 保存时：`save()` / `saveNotes()` / `saveHabits()` 先写 `_backup` 备份 → 写 localStorage → 推 Supabase（批量 upsert）
+- 启动时：`load()` / `loadNotes()` / `loadHabits()` 从 localStorage 读取，若主数据为空则自动从 `_backup` 恢复
 - 删除时：`_sbDelete()` 从 Supabase 删除对应行
 - 数据行级安全（RLS）：每个用户只能读写自己的数据（`user_id = auth.uid()`）
 - 表结构：memos / notes / habits 三张表，字段与前端数据模型一一对应
