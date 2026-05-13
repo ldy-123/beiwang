@@ -136,7 +136,7 @@ let state = {
 
 // ─── Storage ───────────────────────────────────────────
 function _backup(key, data) {
-  try { if (data && data.length) localStorage.setItem(key + '_backup', JSON.stringify(data)); } catch (_) {}
+  try { localStorage.setItem(key + '_backup', JSON.stringify(data || [])); } catch (_) {}
 }
 function _restoreBackup(key) {
   try { return JSON.parse(localStorage.getItem(key + '_backup')) || []; } catch (_) { return []; }
