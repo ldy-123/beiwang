@@ -49,12 +49,26 @@ async function syncAllFromCloud() {
       sb.from('notes').select('*').eq('user_id', sbUser.id),
       sb.from('habits').select('*').eq('user_id', sbUser.id),
     ]);
-    if (memos) { state.memos = memos.map(flatMemo); localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos)); }
-    if (notes) { noteState.notes = notes.map(flatNote); localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes)); }
-    if (habits) { habitState.habits = habits.map(flatHabit); localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits)); }
+    const cloudEmpty = (!memos || !memos.length) && (!notes || !notes.length) && (!habits || !habits.length);
+    const localHas = state.memos.length || noteState.notes.length || habitState.habits.length;
+
+    if (cloudEmpty && localHas) {
+      // First login — upload local data to cloud instead of overwriting
+      await Promise.all([
+        _syncTableToCloud('memos'),
+        _syncTableToCloud('notes'),
+        _syncTableToCloud('habits'),
+      ]);
+      showToast('本地数据已上传到云端');
+    } else if (!cloudEmpty) {
+      // Cloud has data — use it as source of truth
+      if (memos.length) { state.memos = memos.map(flatMemo); localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos)); }
+      if (notes.length) { noteState.notes = notes.map(flatNote); localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes)); }
+      if (habits.length) { habitState.habits = habits.map(flatHabit); localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits)); }
+      showToast('数据已同步');
+    }
     renderAll();
     scheduleNotifications();
-    showToast('数据已同步');
   } catch (e) { console.warn('Sync error', e); }
 }
 
