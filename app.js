@@ -605,26 +605,11 @@ function renderList() {
 }
 
 function renderAll() {
-  if (!authResolved) return;
-  if (!sbAuthed) {
-    document.getElementById('tagsBar').style.display = 'none';
-    document.getElementById('archiveSubtabs').style.display = 'none';
-    document.getElementById('fab').style.display = 'none';
-    document.getElementById('memoList').innerHTML = `
-      <div class="empty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0110 0v4"/>
-        </svg>
-        <p>请<strong>登录</strong>后查看随手记</p>
-      </div>`;
-    return;
-  }
-
   const isNotes = state.currentTab === 'notes';
   const isHabits = state.currentTab === 'habits';
   const inArchive = state.currentTab === 'archive';
 
+  // Tag cleanup (always)
   if (!isNotes && !isHabits && state.activeTag !== 'all' && !getAllTags().includes(state.activeTag)) {
     state.activeTag = 'all';
   }
@@ -632,6 +617,7 @@ function renderAll() {
     noteState.activeTag = 'all';
   }
 
+  // Navigation UI (always updated, even before auth resolves)
   document.getElementById('tagsBar').style.display = (inArchive || isHabits) ? 'none' : '';
   document.documentElement.style.setProperty('--tags-bar-h',
     inArchive ? '62px' : isHabits ? '12px' : '64px');
@@ -645,6 +631,22 @@ function renderAll() {
     el.classList.toggle('active', el.dataset.tab === state.currentTab);
   });
 
+  // Auth gate — only blocks list rendering, not tab switching
+  if (!authResolved) return;
+  if (!sbAuthed) {
+    document.getElementById('fab').style.display = 'none';
+    document.getElementById('memoList').innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+        </svg>
+        <p>请<strong>登录</strong>后查看随手记</p>
+      </div>`;
+    return;
+  }
+
+  // Render list data
   if (isHabits) {
     renderHabitAll();
   } else if (isNotes) {
