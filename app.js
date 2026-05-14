@@ -687,8 +687,6 @@ function renderArchiveAll() {
       </div>`;
     } else {
       const plain = stripHtml(item.content || '');
-      const trimmed = plain.length > 80 ? plain.slice(0, 80) + '…' : plain;
-      const escapedPreview = escHtml(trimmed);
       const hasContent = plain.length > 0;
       return `
       <div class="note-swipe-item" data-id="${item.id}">
@@ -700,7 +698,7 @@ function renderArchiveAll() {
           <button class="note-card-menu-btn" data-id="${item.id}" data-action="menu">⋯</button>
           <h3 style="padding-right:28px">${escHtml(item.title || '无标题')}</h3>
           ${hasContent ? `
-            <div class="note-card-preview">${escapedPreview}</div>
+            <div class="note-card-preview">${item.content || ''}</div>
             <div class="note-card-full" style="display:none">${item.content || ''}</div>` : ''}
           <div class="note-card-footer">
             ${hasContent ? '<span class="note-card-toggle">展开</span>' : '<span></span>'}
@@ -1615,8 +1613,6 @@ function renderNoteTagsBar() {
 
 function _noteCardHTML(n) {
   const plain = stripHtml(n.content || '');
-  const trimmed = plain.length > 80 ? plain.slice(0, 80) + '…' : plain;
-  const escapedPreview = escHtml(trimmed);
   const hasContent = plain.length > 0;
   const isExpanded = expandedNoteIds.has(n.id);
   return `
@@ -1631,7 +1627,7 @@ function _noteCardHTML(n) {
       ${n.pinned ? '<span class="note-pin-badge">📌 置顶</span>' : ''}
       <h3 style="padding-right:28px">${escHtml(n.title || '无标题')}</h3>
       ${hasContent ? `
-        <div class="note-card-preview"${isExpanded ? ' style="display:none"' : ''}>${escapedPreview}</div>
+        <div class="note-card-preview"${isExpanded ? ' style="display:none"' : ''}>${n.content || ''}</div>
         <div class="note-card-full"${isExpanded ? '' : ' style="display:none"'}>${n.content || ''}</div>` : ''}
       <div class="note-card-footer">
         ${hasContent ? `<span class="note-card-toggle">${isExpanded ? '收起' : '展开'}</span>` : '<span></span>'}
@@ -2243,6 +2239,18 @@ function initRichtextToolbar() {
   document.querySelector('[data-cmd="underline"]').addEventListener('mousedown', e => {
     e.preventDefault();
     exec('underline');
+  });
+
+  // Unordered list
+  document.querySelector('[data-cmd="insertUnorderedList"]').addEventListener('mousedown', e => {
+    e.preventDefault();
+    exec('insertUnorderedList');
+  });
+
+  // Ordered list
+  document.querySelector('[data-cmd="insertOrderedList"]').addEventListener('mousedown', e => {
+    e.preventDefault();
+    exec('insertOrderedList');
   });
 
   // Color picker toggle

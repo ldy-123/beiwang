@@ -710,6 +710,8 @@ html, body {
 }
 .richtext-editor b, .richtext-editor strong { font-weight: 700; }
 .richtext-editor u { text-decoration: underline; }
+.richtext-editor ul, .richtext-editor ol { padding-left: 24px; margin: 4px 0; }
+.richtext-editor li { margin: 2px 0; }
 
 /* ─── Bottom toolbar ─── */
 .note-toolbar {
@@ -774,6 +776,9 @@ html, body {
   word-break: break-word;
 }
 .note-card-preview img { display: none; }
+.note-card-preview ul, .note-card-preview ol,
+.note-card-full ul, .note-card-full ol { padding-left: 20px; margin: 2px 0; }
+.note-card-preview li, .note-card-full li { margin: 1px 0; }
 .note-card-full {
   font-size: 14px; color: var(--text); line-height: 1.8;
   margin-bottom: 8px; word-break: break-word;
