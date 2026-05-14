@@ -52,7 +52,7 @@
 - **FAB**：根据 `state.currentTab` 路由到对应的 `openNew*()` 函数。
 - **通知**：待办到期时间通过 `setTimeout` 触发 Web Notification API（最长 24 小时）。页面回到前台时（`visibilitychange`）重建定时器并补发过期通知。用户保存含截止时间的待办时，在点击保存的用户手势上请求通知权限（iOS 要求）。每次 `save()` 调用时重建所有定时器。
 - **导出/导入**：三个模块全量打包为一个 JSON（`{version, exportedAt, memos, notes, habits}`）。移动端走 Web Share API，桌面端下载兜底。文件导入和剪贴板导入均兼容旧格式（纯备忘数组）和新格式（全量备份）。
-- **Service Worker**：network-first 策略，在线始终拉取最新版本，离线降级用缓存兜底。资源变更时需在 `sw.js` 中递增 `CACHE` 版本号。
+- **Service Worker**：stale-while-revalidate 策略，缓存优先秒开，后台静默更新。离线降级用缓存兜底。资源变更时需在 `sw.js` 中递增 `CACHE` 版本号。
 
 ## Supabase 云同步
 

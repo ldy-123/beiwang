@@ -1,4 +1,4 @@
-const CACHE = 'memo-v47';
+const CACHE = 'memo-v48';
 const ASSETS = ['./index.html', './style.css', './app.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -15,11 +15,16 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   e.respondWith(
-    fetch(e.request).then(response => {
-      return caches.open(CACHE).then(cache => {
-        if (response.ok) cache.put(e.request, response.clone());
+    caches.match(e.request).then(cached => {
+      const fetchPromise = fetch(e.request).then(response => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(cache => cache.put(e.request, clone));
+        }
         return response;
-      });
-    }).catch(() => caches.match(e.request))
+      }).catch(() => cached);
+
+      return cached || fetchPromise;
+    })
   );
 });
