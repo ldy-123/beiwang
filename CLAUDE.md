@@ -37,7 +37,7 @@
 
 **小记** (`noteState.notes[]`)：`id, title, content (HTML 字符串), tags[], pinned, pinnedAt, archived, createdAt, updatedAt`
 
-**打卡** (`habitState.habits[]`)：`id, title, emoji, color, completedDates[] (YYYY-MM-DD 格式字符串), archived, createdAt, updatedAt`
+**打卡** (`habitState.habits[]`)：`id, title, emoji, completedDates[] (YYYY-MM-DD 格式字符串), archived, createdAt, updatedAt`
 
 ## 关键模式
 
@@ -56,11 +56,14 @@
 
 ## Supabase 云同步
 
-- 应用加载 Supabase JS SDK CDN。CDN 脚本以 `async` 加载并置于 `app.js` 之后，避免 CDN 不可用时阻塞页面渲染和 PWA 启动
-- 未登录时与旧版一致——纯 localhostStorage 运行
+- Supabase CDN 脚本以 `async` 加载并置于 `app.js` 之前，尽早开始下载
+- **认证优先启动**：应用启动时不立即加载数据。`DOMContentLoaded` 只绑定事件监听，不调用 `load()` / `loadNotes()` / `loadHabits()` / `renderAll()`。等 `initSupabase()` 中 `getSession()` 完成后才决定：已登录则 `_bootWithAuth()` 加载数据并渲染，未登录则 `renderAll()` 显示空状态+登录引导
+- 未登录时应用不展示任何数据，`renderAll()` 早期 return 显示「请登录后查看随手记」
 - 登录后：`syncAllFromCloud()` 拉取云端数据，与本地按 `updatedAt` 逐条合并（谁新留谁），合并结果回推云端
+- 退出登录时清空内存状态并重新渲染空视图
+- 8 秒超时兜底：若 CDN 未及时加载，应用以空状态正常启动
 - 保存时：`save()` / `saveNotes()` / `saveHabits()` 先写 `_backup` 备份 → 写 localStorage → 推 Supabase（批量 upsert）。备份始终与主数据同步（包括空数组），防止删除全部条目后旧备份残留导致数据复活
-- 启动时：`load()` / `loadNotes()` / `loadHabits()` 从 localStorage 读取，若主数据为空则自动从 `_backup` 恢复（仅在备份非空时触发）
+- 启动时：`load()` / `loadNotes()` / `loadHabits()` 仅在已登录时调用（由 `_bootWithAuth()` 触发），从 localStorage 读取，若主数据为空则自动从 `_backup` 恢复（仅在备份非空时触发）
 - 删除时：`_sbDelete()` 从 Supabase 删除对应行
 - 数据行级安全（RLS）：每个用户只能读写自己的数据（`user_id = auth.uid()`）
 - 表结构：memos / notes / habits 三张表，字段与前端数据模型一一对应

@@ -492,15 +492,6 @@ html, body {
 }
 .edit-tag span { font-size: 13px; line-height: 1; opacity: .7; }
 
-/* Color picker */
-.color-picker { display: flex; gap: 8px; }
-.color-dot {
-  width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid transparent; cursor: pointer; transition: transform .15s, border-color .15s;
-}
-.color-dot.selected {
-  border-color: var(--text); transform: scale(1.15);
-}
 
 /* Modal actions */
 .modal-actions { display: flex; gap: 8px; margin-top: 2px; }

@@ -15,6 +15,7 @@ const SUPABASE_KEY = 'sb_publishable_WvAjzjqPoxAKLoT1sYXuwg_FE6__DEb';
 let sb = null;
 let sbAuthed = false;
 let sbUser = null;
+let authResolved = false;
 
 function initSupabase() {
   if (typeof supabase === 'undefined') { console.warn('Supabase SDK not loaded'); return; }
@@ -30,22 +31,38 @@ function initSupabase() {
       sbAuthed = !!session;
       sbUser = session ? session.user : null;
       updateAuthUI();
-      if (event === 'SIGNED_IN') syncAllFromCloud();
-      if (event === 'SIGNED_OUT') { sbUser = null; showToast('登录已过期，请重新登录'); }
+      if (event === 'SIGNED_IN') { _bootWithAuth(); syncAllFromCloud(); }
+      if (event === 'SIGNED_OUT') { sbUser = null; state.memos = []; noteState.notes = []; habitState.habits = []; renderAll(); showToast('已退出登录'); }
       if (event === 'TOKEN_REFRESHED') { /* session stays alive */ }
     });
     sb.auth.getSession().then(({ data: { session } }) => {
       sbAuthed = !!session;
       sbUser = session ? session.user : null;
       updateAuthUI();
+      if (!authResolved) {
+        authResolved = true;
+        if (session) _bootWithAuth();
+        else renderAll();
+      }
       if (session) syncAllFromCloud();
+    }).catch(() => {
+      if (!authResolved) { authResolved = true; renderAll(); }
     });
-  } catch (e) { console.warn('Supabase init error', e); sb = null; }
+  } catch (e) { console.warn('Supabase init error', e); sb = null; if (!authResolved) { authResolved = true; renderAll(); } }
 }
 
 function updateAuthUI() {
   const dot = document.getElementById('userDot');
   if (dot) dot.style.display = sbAuthed ? 'block' : 'none';
+}
+
+function _bootWithAuth() {
+  load();
+  loadNotes();
+  loadHabits();
+  loadTagOrder();
+  renderAll();
+  requestNotifPermission();
 }
 
 async function syncAllFromCloud() {
@@ -588,6 +605,22 @@ function renderList() {
 }
 
 function renderAll() {
+  if (!authResolved) return;
+  if (!sbAuthed) {
+    document.getElementById('tagsBar').style.display = 'none';
+    document.getElementById('archiveSubtabs').style.display = 'none';
+    document.getElementById('fab').style.display = 'none';
+    document.getElementById('memoList').innerHTML = `
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+        </svg>
+        <p>请<strong>登录</strong>后查看随手记</p>
+      </div>`;
+    return;
+  }
+
   const isNotes = state.currentTab === 'notes';
   const isHabits = state.currentTab === 'habits';
   const inArchive = state.currentTab === 'archive';
@@ -2104,13 +2137,11 @@ function initHabitSwipes() {
 // ═══════════════════════════════════════════════════════
 
 let habitEditEmoji = '💪';
-let habitEditColor = COLORS[0];
 
 function openNewHabit() {
   habitState.editingId = null;
   habitEditEmoji = HABIT_EMOJIS[Math.floor(Math.random() * HABIT_EMOJIS.length)];
-  habitEditColor = COLORS[Math.floor(Math.random() * COLORS.length)];
-  showHabitModal({ id: null, title: '', emoji: habitEditEmoji, color: habitEditColor, completedDates: [] });
+  showHabitModal({ id: null, title: '', emoji: habitEditEmoji, completedDates: [] });
 }
 
 function openEditHabit(id) {
@@ -2119,7 +2150,6 @@ function openEditHabit(id) {
   if (!h) return;
   habitState.editingId = id;
   habitEditEmoji = h.emoji;
-  habitEditColor = h.color;
   showHabitModal(h);
 }
 
@@ -2128,7 +2158,6 @@ function showHabitModal(h) {
   document.getElementById('habitInputTitle').value = h.title || '';
   document.getElementById('btnDeleteHabit').style.display = h.id ? 'block' : 'none';
   renderEmojiPicker();
-  renderHabitColorPicker();
   document.getElementById('habitOverlay').classList.add('open');
   setTimeout(() => document.getElementById('habitInputTitle').focus(), 350);
 }
@@ -2147,12 +2176,12 @@ function saveHabit() {
     if (idx !== -1) {
       habitState.habits[idx] = {
         ...habitState.habits[idx],
-        title, emoji: habitEditEmoji, color: habitEditColor, updatedAt: Date.now()
+        title, emoji: habitEditEmoji, updatedAt: Date.now()
       };
     }
   } else {
     habitState.habits.push({
-      id: uid(), title, emoji: habitEditEmoji, color: habitEditColor,
+      id: uid(), title, emoji: habitEditEmoji,
       completedDates: [], createdAt: Date.now(), updatedAt: Date.now()
     });
   }
@@ -2187,18 +2216,6 @@ function renderEmojiPicker() {
   });
 }
 
-function renderHabitColorPicker() {
-  const el = document.getElementById('habitColorPicker');
-  el.innerHTML = COLORS.map(c => `
-    <div class="color-dot ${c === habitEditColor ? 'selected' : ''}" data-color="${c}" style="background:${c}"></div>
-  `).join('');
-  el.querySelectorAll('.color-dot').forEach(dot => {
-    dot.addEventListener('click', () => {
-      habitEditColor = dot.dataset.color;
-      renderHabitColorPicker();
-    });
-  });
-}
 
 // ═══════════════════════════════════════════════════════
 // ─── Rich text editor toolbar ─────────────────────────
@@ -2301,9 +2318,6 @@ function initRichtextToolbar() {
 
 // ─── Init ──────────────────────────────────────────────
 function init() {
-  load();
-  loadTagOrder();
-
   document.getElementById('btnSearch').addEventListener('click', toggleSearch);
   document.getElementById('btnMenu').addEventListener('click', toggleMenu);
   document.getElementById('btnExport').addEventListener('click', exportData);
@@ -2361,9 +2375,6 @@ function init() {
       renderAll();
     });
   });
-
-  renderAll();
-  requestNotifPermission();
 
   // Reschedule notifications when app returns to foreground
   document.addEventListener('visibilitychange', () => {
@@ -2520,8 +2531,6 @@ function _bindNoteCardMenu() {
 
 // ─── Notes init ──────────────────────────────────────────
 function initNotes() {
-  loadNotes();
-
   // Create global note card menu dropdown
   const dd = document.createElement('div');
   dd.id = 'noteCardMenu';
@@ -2579,7 +2588,6 @@ function initNotes() {
 }
 
 function initHabits() {
-  loadHabits();
   document.getElementById('habitOverlay').addEventListener('click', e => {
     if (e.target === document.getElementById('habitOverlay')) closeHabitModal();
   });
@@ -2589,3 +2597,15 @@ function initHabits() {
 }
 
 document.addEventListener('DOMContentLoaded', () => { init(); initNotes(); initHabits(); });
+
+// Fallback: if Supabase CDN doesn't load in time, boot with empty state
+setTimeout(() => {
+  if (!authResolved) {
+    if (typeof supabase !== 'undefined' && !sb) {
+      initSupabase(); // let initSupabase set authResolved
+    } else {
+      authResolved = true;
+      renderAll();
+    }
+  }
+}, 8000);
