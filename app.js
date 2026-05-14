@@ -634,6 +634,8 @@ function renderAll() {
   // Auth gate — only blocks list rendering, not tab switching
   if (!authResolved) return;
   if (!sbAuthed) {
+    document.getElementById('tagsBar').style.display = 'none';
+    document.getElementById('archiveSubtabs').style.display = 'none';
     document.getElementById('fab').style.display = 'none';
     document.getElementById('memoList').innerHTML = `
       <div class="empty">
