@@ -93,7 +93,7 @@ async function syncAllFromCloud() {
         if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
       }
       for (const local of state.memos) {
-        if (!merged.find(c => c.id === local.id)) merged.push(local);
+        if (!tombstonedMemos.has(local.id) && !merged.find(c => c.id === local.id)) merged.push(local);
       }
       state.memos = merged;
       save();
@@ -110,7 +110,7 @@ async function syncAllFromCloud() {
         if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
       }
       for (const local of noteState.notes) {
-        if (!merged.find(c => c.id === local.id)) merged.push(local);
+        if (!tombstonedNotes.has(local.id) && !merged.find(c => c.id === local.id)) merged.push(local);
       }
       noteState.notes = merged;
       saveNotes();
@@ -127,7 +127,7 @@ async function syncAllFromCloud() {
         if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
       }
       for (const local of habitState.habits) {
-        if (!merged.find(c => c.id === local.id)) merged.push(local);
+        if (!tombstonedHabits.has(local.id) && !merged.find(c => c.id === local.id)) merged.push(local);
       }
       habitState.habits = merged;
       saveHabits();
