@@ -166,6 +166,9 @@ html, body {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ─── Memo card ─── */
 .memo-list { display: flex; flex-direction: column; gap: 8px; }

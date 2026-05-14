@@ -31,7 +31,7 @@ function initSupabase() {
       sbAuthed = !!session;
       sbUser = session ? session.user : null;
       updateAuthUI();
-      if (event === 'SIGNED_IN') { _bootWithAuth(); syncAllFromCloud(); }
+      if (event === 'SIGNED_IN') { if (!authResolved) authResolved = true; _bootWithAuth(); syncAllFromCloud(); }
       if (event === 'SIGNED_OUT') { sbUser = null; state.memos = []; noteState.notes = []; habitState.habits = []; renderAll(); showToast('已退出登录'); }
       if (event === 'TOKEN_REFRESHED') { /* session stays alive */ }
     });
@@ -75,17 +75,23 @@ async function syncAllFromCloud() {
     ]);
 
     // Per-item merge: take whichever version is newer (by updatedAt)
+    // Filter out tombstoned items (deleted locally but not yet confirmed by cloud)
+    const tombstones = _getTombstones();
+    _cleanTombstones();
+    const tombstonedMemos = new Set(tombstones.filter(t => t.table === 'memos').map(t => t.id));
+    const tombstonedNotes = new Set(tombstones.filter(t => t.table === 'notes').map(t => t.id));
+    const tombstonedHabits = new Set(tombstones.filter(t => t.table === 'habits').map(t => t.id));
+
     if (memos && memos.length) {
       const localMap = new Map(state.memos.map(m => [m.id, m]));
-      const merged = memos.map(flatMemo);
+      const merged = memos.map(flatMemo).filter(item => {
+        if (tombstonedMemos.has(item.id)) { _sbDelete('memos', item.id); return false; }
+        return true;
+      });
       for (const cloudItem of merged) {
         const local = localMap.get(cloudItem.id);
-        if (local && local.updatedAt > cloudItem.updatedAt) {
-          // Local is newer — keep local, push to cloud
-          Object.assign(cloudItem, local);
-        }
+        if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
       }
-      // Add local-only items that don't exist in cloud
       for (const local of state.memos) {
         if (!merged.find(c => c.id === local.id)) merged.push(local);
       }
@@ -95,7 +101,10 @@ async function syncAllFromCloud() {
 
     if (notes && notes.length) {
       const localMap = new Map(noteState.notes.map(n => [n.id, n]));
-      const merged = notes.map(flatNote);
+      const merged = notes.map(flatNote).filter(item => {
+        if (tombstonedNotes.has(item.id)) { _sbDelete('notes', item.id); return false; }
+        return true;
+      });
       for (const cloudItem of merged) {
         const local = localMap.get(cloudItem.id);
         if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
@@ -109,7 +118,10 @@ async function syncAllFromCloud() {
 
     if (habits && habits.length) {
       const localMap = new Map(habitState.habits.map(h => [h.id, h]));
-      const merged = habits.map(flatHabit);
+      const merged = habits.map(flatHabit).filter(item => {
+        if (tombstonedHabits.has(item.id)) { _sbDelete('habits', item.id); return false; }
+        return true;
+      });
       for (const cloudItem of merged) {
         const local = localMap.get(cloudItem.id);
         if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
@@ -144,9 +156,34 @@ function _sbRow(table, item) {
   return { id: item.id, user_id: sbUser.id, title: item.title, emoji: item.emoji, color: item.color, completed_dates: item.completedDates || [], archived: item.archived || false, archived_at: item.archivedAt ? new Date(item.archivedAt).toISOString() : null, created_at: new Date(item.createdAt).toISOString(), updated_at: new Date(item.updatedAt).toISOString() };
 }
 
+// ─── Deletion tombstones ────────────────────────────────
+const TOMBSTONE_KEY = 'deleted_tombstones_v1';
+
+function _getTombstones() {
+  try { return JSON.parse(localStorage.getItem(TOMBSTONE_KEY)) || []; } catch (_) { return []; }
+}
+function _addTombstone(table, id) {
+  const list = _getTombstones();
+  list.push({ table, id, ts: Date.now() });
+  localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(list));
+}
+function _removeTombstone(table, id) {
+  const list = _getTombstones().filter(t => !(t.table === table && t.id === id));
+  localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(list));
+}
+function _cleanTombstones() {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const list = _getTombstones().filter(t => t.ts > cutoff);
+  localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(list));
+}
+
 function _sbDelete(table, id) {
   if (!sb || !sbUser) return;
-  sb.from(table).delete().eq('id', id).then(({ error }) => { if (error) console.warn('Delete error', error); });
+  _addTombstone(table, id);
+  sb.from(table).delete().eq('id', id).then(({ error }) => {
+    if (!error) _removeTombstone(table, id);
+    else console.warn('Delete error', error);
+  });
 }
 
 let state = {
@@ -632,7 +669,21 @@ function renderAll() {
   });
 
   // Auth gate — only blocks list rendering, not tab switching
-  if (!authResolved) return;
+  if (!authResolved) {
+    if (!document.getElementById('memoList').querySelector('.loading-spinner')) {
+      document.getElementById('tagsBar').style.display = 'none';
+      document.getElementById('archiveSubtabs').style.display = 'none';
+      document.getElementById('fab').style.display = 'none';
+      document.getElementById('memoList').innerHTML = `
+        <div class="loading-spinner" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;color:var(--text-3)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:28px;height:28px;animation:spin 0.8s linear infinite">
+            <path d="M21 12a9 9 0 11-6.219-8.56"/>
+          </svg>
+          <span style="font-size:13px">加载中…</span>
+        </div>`;
+    }
+    return;
+  }
   if (!sbAuthed) {
     document.getElementById('tagsBar').style.display = 'none';
     document.getElementById('archiveSubtabs').style.display = 'none';
