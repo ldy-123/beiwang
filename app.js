@@ -2651,7 +2651,7 @@ function initHabits() {
   document.getElementById('btnDeleteHabit').addEventListener('click', deleteHabit);
 }
 
-document.addEventListener('DOMContentLoaded', () => { init(); initNotes(); initHabits(); });
+document.addEventListener('DOMContentLoaded', () => { init(); initNotes(); initHabits(); renderAll(); });
 
 // Fallback: if Supabase CDN doesn't load in time, boot with empty state
 setTimeout(() => {
