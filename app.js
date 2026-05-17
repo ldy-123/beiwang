@@ -65,6 +65,23 @@ function _bootWithAuth() {
   requestNotifPermission();
 }
 
+function _mergeCloudItems(localItems, cloudItems, flatFn, table, tombstonedSet) {
+  const localMap = new Map(localItems.map(x => [x.id, x]));
+  const merged = cloudItems.map(flatFn).filter(item => {
+    if (tombstonedSet.has(item.id)) { _sbDelete(table, item.id); return false; }
+    return true;
+  });
+  for (const cloudItem of merged) {
+    const local = localMap.get(cloudItem.id);
+    if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
+  }
+  const mergedIds = new Set(merged.map(c => c.id));
+  for (const local of localItems) {
+    if (!tombstonedSet.has(local.id) && !mergedIds.has(local.id)) merged.push(local);
+  }
+  return merged;
+}
+
 async function syncAllFromCloud() {
   if (!sb || !sbUser) return;
   try {
@@ -83,53 +100,17 @@ async function syncAllFromCloud() {
     const tombstonedHabits = new Set(tombstones.filter(t => t.table === 'habits').map(t => t.id));
 
     if (memos && memos.length) {
-      const localMap = new Map(state.memos.map(m => [m.id, m]));
-      const merged = memos.map(flatMemo).filter(item => {
-        if (tombstonedMemos.has(item.id)) { _sbDelete('memos', item.id); return false; }
-        return true;
-      });
-      for (const cloudItem of merged) {
-        const local = localMap.get(cloudItem.id);
-        if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
-      }
-      for (const local of state.memos) {
-        if (!tombstonedMemos.has(local.id) && !merged.find(c => c.id === local.id)) merged.push(local);
-      }
-      state.memos = merged;
+      state.memos = _mergeCloudItems(state.memos, memos, flatMemo, 'memos', tombstonedMemos);
       save();
     }
 
     if (notes && notes.length) {
-      const localMap = new Map(noteState.notes.map(n => [n.id, n]));
-      const merged = notes.map(flatNote).filter(item => {
-        if (tombstonedNotes.has(item.id)) { _sbDelete('notes', item.id); return false; }
-        return true;
-      });
-      for (const cloudItem of merged) {
-        const local = localMap.get(cloudItem.id);
-        if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
-      }
-      for (const local of noteState.notes) {
-        if (!tombstonedNotes.has(local.id) && !merged.find(c => c.id === local.id)) merged.push(local);
-      }
-      noteState.notes = merged;
+      noteState.notes = _mergeCloudItems(noteState.notes, notes, flatNote, 'notes', tombstonedNotes);
       saveNotes();
     }
 
     if (habits && habits.length) {
-      const localMap = new Map(habitState.habits.map(h => [h.id, h]));
-      const merged = habits.map(flatHabit).filter(item => {
-        if (tombstonedHabits.has(item.id)) { _sbDelete('habits', item.id); return false; }
-        return true;
-      });
-      for (const cloudItem of merged) {
-        const local = localMap.get(cloudItem.id);
-        if (local && local.updatedAt > cloudItem.updatedAt) Object.assign(cloudItem, local);
-      }
-      for (const local of habitState.habits) {
-        if (!tombstonedHabits.has(local.id) && !merged.find(c => c.id === local.id)) merged.push(local);
-      }
-      habitState.habits = merged;
+      habitState.habits = _mergeCloudItems(habitState.habits, habits, flatHabit, 'habits', tombstonedHabits);
       saveHabits();
     }
 
