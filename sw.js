@@ -1,4 +1,4 @@
-const CACHE = 'memo-v48';
+const CACHE = 'memo-v49';
 const ASSETS = ['./index.html', './style.css', './app.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
