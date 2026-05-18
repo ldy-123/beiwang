@@ -578,7 +578,11 @@ function renderTagsBar() {
   bar.querySelectorAll('.tag-chip').forEach(btn => {
     btn.addEventListener('click', () => {
       state.activeTag = btn.dataset.tag;
-      renderAll();
+      // Only toggle active class — don't rebuild the tag bar DOM
+      bar.querySelectorAll('.tag-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.tag === state.activeTag);
+      });
+      renderList();
     });
     btn.addEventListener('contextmenu', e => e.preventDefault());
   });
@@ -1725,7 +1729,11 @@ function renderNoteTagsBar() {
     btn.addEventListener('click', () => {
       noteState.activeTag = btn.dataset.noteTag;
       expandedNoteIds.clear();
-      renderNoteAll();
+      // Only toggle active class — don't rebuild the tag bar DOM
+      bar.querySelectorAll('.tag-chip').forEach(chip => {
+        chip.classList.toggle('active', chip.dataset.noteTag === noteState.activeTag);
+      });
+      renderNoteList();
     });
     btn.addEventListener('contextmenu', e => e.preventDefault());
   });
