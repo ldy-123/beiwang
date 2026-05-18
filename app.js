@@ -195,10 +195,22 @@ function load() {
   if (!sbAuthed) { state.memos = []; return; }
   try { state.memos = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { state.memos = []; }
+  // Filter out tombstoned items to prevent deleted data from resurrecting
+  // when main storage is stale (e.g. force-kill interrupted the cloud delete)
+  const tombstones = _getTombstones();
+  const tombstonedIds = new Set(tombstones.filter(t => t.table === 'memos').map(t => t.id));
+  if (tombstonedIds.size) {
+    state.memos = state.memos.filter(m => !tombstonedIds.has(m.id));
+  }
   // Auto-restore from backup if main data is empty
   if (!state.memos.length) {
     const backup = _restoreBackup(STORAGE_KEY);
-    if (backup.length) { state.memos = backup; save(); }
+    if (backup.length) {
+      state.memos = tombstonedIds.size
+        ? backup.filter(m => !tombstonedIds.has(m.id))
+        : backup;
+      save();
+    }
   }
 }
 function save() {
@@ -290,9 +302,19 @@ function loadNotes() {
   if (!sbAuthed) { noteState.notes = []; return; }
   try { noteState.notes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; }
   catch { noteState.notes = []; }
+  const tombstones = _getTombstones();
+  const tombstonedIds = new Set(tombstones.filter(t => t.table === 'notes').map(t => t.id));
+  if (tombstonedIds.size) {
+    noteState.notes = noteState.notes.filter(n => !tombstonedIds.has(n.id));
+  }
   if (!noteState.notes.length) {
     const backup = _restoreBackup(NOTES_KEY);
-    if (backup.length) { noteState.notes = backup; saveNotes(); }
+    if (backup.length) {
+      noteState.notes = tombstonedIds.size
+        ? backup.filter(n => !tombstonedIds.has(n.id))
+        : backup;
+      saveNotes();
+    }
   }
 }
 function saveNotes() {
@@ -314,9 +336,19 @@ function loadHabits() {
   if (!sbAuthed) { habitState.habits = []; return; }
   try { habitState.habits = JSON.parse(localStorage.getItem(HABITS_KEY)) || []; }
   catch { habitState.habits = []; }
+  const tombstones = _getTombstones();
+  const tombstonedIds = new Set(tombstones.filter(t => t.table === 'habits').map(t => t.id));
+  if (tombstonedIds.size) {
+    habitState.habits = habitState.habits.filter(h => !tombstonedIds.has(h.id));
+  }
   if (!habitState.habits.length) {
     const backup = _restoreBackup(HABITS_KEY);
-    if (backup.length) { habitState.habits = backup; saveHabits(); }
+    if (backup.length) {
+      habitState.habits = tombstonedIds.size
+        ? backup.filter(h => !tombstonedIds.has(h.id))
+        : backup;
+      saveHabits();
+    }
   }
 }
 function saveHabits() {

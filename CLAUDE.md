@@ -72,7 +72,7 @@
 - 登录后：`syncAllFromCloud()` 拉取云端数据，与本地按 `updatedAt` 逐条合并（谁新留谁），合并结果回推云端
 - 退出登录时清空内存状态、清除所有 localStorage 数据（含备份），重新渲染空视图
 - 8 秒超时兜底：若 CDN 未及时加载，应用以空状态正常启动
-- 删除操作通过墓碑机制（`deleted_tombstones_v1`）防止数据复活：`_sbDelete()` 先将 ID 记入墓碑再发 DELETE 请求，成功后移除墓碑。`syncAllFromCloud()` 合并时过滤墓碑条目并重试云端删除。7 天后自动清理过期墓碑
+- 删除操作通过墓碑机制（`deleted_tombstones_v1`）防止数据复活：`_sbDelete()` 先将 ID 记入墓碑再发 DELETE 请求，成功后移除墓碑。墓碑过滤在 `load()`/`loadNotes()`/`loadHabits()`（启动时过滤本地数据）和 `syncAllFromCloud()`（合并时过滤云端条目并重试删除）两个环节生效。7 天后自动清理过期墓碑
 - 认证等待期间显示 loading spinner（`@keyframes spin`），避免白屏
 - 保存时：`save()` / `saveNotes()` / `saveHabits()` 仅在已登录时写 `_backup` 备份 → 写 localStorage → 推 Supabase（批量 upsert）。未登录时不写本地存储。备份始终与主数据同步（包括空数组），防止删除全部条目后旧备份残留导致数据复活
 - 启动时：`load()` / `loadNotes()` / `loadHabits()` 仅在已登录时调用（由 `_bootWithAuth()` 触发），从 localStorage 读取，若主数据为空则自动从 `_backup` 恢复（仅在备份非空时触发）
