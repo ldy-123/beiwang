@@ -32,7 +32,7 @@ function initSupabase() {
       sbUser = session ? session.user : null;
       updateAuthUI();
       if (event === 'SIGNED_IN') { if (!authResolved) authResolved = true; _bootWithAuth(); syncAllFromCloud(); }
-      if (event === 'SIGNED_OUT') { sbUser = null; state.memos = []; noteState.notes = []; habitState.habits = []; renderAll(); showToast('已退出登录'); }
+      if (event === 'SIGNED_OUT') { sbUser = null; state.memos = []; noteState.notes = []; habitState.habits = []; _clearLocalData(); renderAll(); showToast('已退出登录'); }
       if (event === 'TOKEN_REFRESHED') { /* session stays alive */ }
     });
     sb.auth.getSession().then(({ data: { session } }) => {
@@ -183,7 +183,16 @@ function _backup(key, data) {
 function _restoreBackup(key) {
   try { return JSON.parse(localStorage.getItem(key + '_backup')) || []; } catch (_) { return []; }
 }
+function _clearLocalData() {
+  try {
+    [STORAGE_KEY, NOTES_KEY, HABITS_KEY, TAG_ORDER_KEY, TOMBSTONE_KEY].forEach(k => {
+      localStorage.removeItem(k);
+      localStorage.removeItem(k + '_backup');
+    });
+  } catch (_) {}
+}
 function load() {
+  if (!sbAuthed) { state.memos = []; return; }
   try { state.memos = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { state.memos = []; }
   // Auto-restore from backup if main data is empty
@@ -193,8 +202,10 @@ function load() {
   }
 }
 function save() {
-  _backup(STORAGE_KEY, state.memos);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos));
+  if (sbAuthed) {
+    _backup(STORAGE_KEY, state.memos);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.memos));
+  }
   if (sb && sbAuthed) _syncTableToCloud('memos');
   const hasDueTodo = state.memos.some(m => (m.todos || []).some(t => t.dueTime && !t.done));
   if (hasDueTodo && 'Notification' in window && Notification.permission === 'default') {
@@ -276,6 +287,7 @@ let noteState = {
 let expandedNoteIds = new Set();
 
 function loadNotes() {
+  if (!sbAuthed) { noteState.notes = []; return; }
   try { noteState.notes = JSON.parse(localStorage.getItem(NOTES_KEY)) || []; }
   catch { noteState.notes = []; }
   if (!noteState.notes.length) {
@@ -284,8 +296,10 @@ function loadNotes() {
   }
 }
 function saveNotes() {
-  _backup(NOTES_KEY, noteState.notes);
-  localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes));
+  if (sbAuthed) {
+    _backup(NOTES_KEY, noteState.notes);
+    localStorage.setItem(NOTES_KEY, JSON.stringify(noteState.notes));
+  }
   if (sb && sbAuthed) _syncTableToCloud('notes');
 }
 
@@ -297,6 +311,7 @@ let habitState = {
 };
 
 function loadHabits() {
+  if (!sbAuthed) { habitState.habits = []; return; }
   try { habitState.habits = JSON.parse(localStorage.getItem(HABITS_KEY)) || []; }
   catch { habitState.habits = []; }
   if (!habitState.habits.length) {
@@ -305,8 +320,10 @@ function loadHabits() {
   }
 }
 function saveHabits() {
-  _backup(HABITS_KEY, habitState.habits);
-  localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits));
+  if (sbAuthed) {
+    _backup(HABITS_KEY, habitState.habits);
+    localStorage.setItem(HABITS_KEY, JSON.stringify(habitState.habits));
+  }
   if (sb && sbAuthed) _syncTableToCloud('habits');
 }
 
