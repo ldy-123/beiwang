@@ -32,7 +32,7 @@ function initSupabase() {
       sbUser = session ? session.user : null;
       updateAuthUI();
       if (event === 'SIGNED_IN') { if (!authResolved) authResolved = true; _bootWithAuth(); syncAllFromCloud(); }
-      if (event === 'SIGNED_OUT') { sbUser = null; state.memos = []; noteState.notes = []; habitState.habits = []; _clearLocalData(); renderAll(); showToast('已退出登录'); }
+      if (event === 'SIGNED_OUT') { sbUser = null; state.memos = []; noteState.notes = []; habitState.habits = []; _clearLocalData(); renderAll(); document.getElementById('memoList').classList.add('animate-in'); showToast('已退出登录'); }
       if (event === 'TOKEN_REFRESHED') { /* session stays alive */ }
     });
     sb.auth.getSession().then(({ data: { session } }) => {
@@ -62,6 +62,8 @@ function _bootWithAuth() {
   loadHabits();
   loadTagOrder();
   renderAll();
+  // Disable entrance animation after first data render to prevent flash on re-renders
+  document.getElementById('memoList').classList.remove('animate-in');
   requestNotifPermission();
 }
 
